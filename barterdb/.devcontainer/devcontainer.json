@@ -1,0 +1,20 @@
+{
+    "name": "Python & React DevContainer",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "mounts": [
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/root/.ssh"
+	],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode"
+            ]
+        }
+    },
+    "forwardPorts": [3000, 8000],
+    "remoteUser": "root"
+}
