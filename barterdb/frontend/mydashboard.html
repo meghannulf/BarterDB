@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - BarterDB</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .dashboard-container {
+            max-width: 900px;
+            margin: auto;
+            padding: 40px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 40px;
+        }
+        .user-info {
+            margin-bottom: 30px;
+        }
+        .logout-btn {
+            text-align: center;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="#">BarterDB</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
+                <li class="nav-item"><a class="nav-link" href="services.html">Services</a></li>
+                <li class="nav-item"><a class="nav-link" href="contact.html">Contact Us</a></li>
+                <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
+                <li class="nav-item"><a class="nav-link" href="signup.html">Sign Up</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" id="logout-btn">Logout</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="dashboard-container">
+    <h2 class="text-center">Welcome to Your Dashboard</h2>
+
+    <!-- User info section -->
+    <div class="user-info">
+        <h4 id="userName">Hello, User!</h4>
+        <p>Email: <span id="userEmail">example@example.com</span></p>
+        <p>User ID: <span id="userId">12345</span></p>
+    </div>
+
+    <!-- Activity/Action Section -->
+    <h4>Recent Activity</h4>
+    <ul id="recent-activity">
+        <li>Item 1: Borrowed</li>
+        <li>Item 2: Lent</li>
+    </ul>
+
+    <!-- Button to view items (can be customized based on your app) -->
+    <div class="text-center mt-4">
+        <a href="view-items.html" class="btn btn-primary">View Your Items</a>
+    </div>
+
+    <!-- Logout Button -->
+    <div class="logout-btn">
+        <button class="btn btn-danger" id="logout-btn">Logout</button>
+    </div>
+</div>
+
+<!-- <script>
+    // Assuming the user data is stored in sessionStorage or localStorage
+    // For now, we're just using dummy data to fill the dashboard.
+    const userData = JSON.parse(localStorage.getItem('userData'));
+
+    if (userData) {
+        // Populate the user's dashboard info
+        document.getElementById('userName').textContent = `Hello, ${userData.name || 'User'}!`;
+        document.getElementById('userEmail').textContent = userData.email || 'example@example.com';
+        document.getElementById('userId').textContent = userData.id || '12345';
+    } else {
+        // If no user data, redirect to sign-in page
+        window.location.href = 'signin.html';
+    }
+
+    // Logout functionality
+    document.getElementById('logout-btn').addEventListener('click', () => {
+        // Clear user data from local storage or session storage
+        localStorage.removeItem('userData');
+        alert('You have logged out successfully');
+        window.location.href = 'signin.html'; // Redirect to sign-in page
+    });
+</script> -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

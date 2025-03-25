@@ -7,12 +7,42 @@ const SignUp = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Perform registration logic here
-    console.log('Signing up:', { name, email, password });
-    navigate('/dashboard'); // Redirect on successful signup
+
+    // Collect user data from form inputs
+    const userData = {
+      name,
+      email,
+      password,
+    };
+
+    try {
+      // Send a POST request to the backend to register the user
+      const response = await fetch('http://127.0.0.1:5000/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData), // Send data as JSON
+      });
+
+      const data = await response.json(); // Parse the response
+
+      if (response.ok) {
+        // Successful signup
+        console.log('User registered:', data);
+        navigate('/signin'); // Redirect to Sign In page after successful registration
+      } else {
+        // Handle error response from backend
+        alert(data.message || 'Failed to register. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error during signup:', err);
+      alert('An error occurred. Please try again.');
+    }
   };
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">

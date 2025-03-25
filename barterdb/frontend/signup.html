@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - BarterDB</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <style>
         body {
             background-color: #f8f9fa;
@@ -20,6 +19,8 @@
         }
     </style>
 </head>
+<body>
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
         <a class="navbar-brand" href="index.html">BarterDB</a>
@@ -38,44 +39,96 @@
         </div>
     </div>
 </nav>
-<body>
 
-    <div class="container">
-        <div class="signup-container">
-            <h2 class="text-center">Sign Up</h2>
-            <form action="signup.jsx" method="POST">
-            <form id="signup-form">
-                <div class="mb-3">
-                    <label for="name" class="form-label">Full Name</label>
-                    <input type="text" class="form-control" id="name" required>
-                </div>
-                <div class="mb-3">
-                    <label for="email" class="form-label">Email Address</label>
-                    <input type="email" class="form-control" id="email" required>
-                </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" class="form-control" id="password" required>
-                </div>
+<div class="container">
+    <!-- Error message container placed directly above the signup form -->
+    <div id="error-message" class="alert alert-danger" style="display: none;"></div>
 
-                
+    <div class="signup-container">
+        <h2 class="text-center">Sign Up</h2>
+        <form id="signup-form">
+            <div class="mb-3">
+                <label for="name" class="form-label">Full Name</label>
+                <input type="text" class="form-control" id="name" required>
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email Address</label>
+                <input type="email" class="form-control" id="email" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" required>
+            </div>
 
-                <button type="submit" class="btn btn-primary w-100" id="signup-btn">Sign Up</button>
-            </form>
+            <button type="submit" class="btn btn-primary w-100" id="signup-btn">Sign Up</button>
+        </form>
 
-            <p class="text-center mt-3">Already have an account? <a href="signin.html">Sign In</a></p>
-        </div>
+        <p class="text-center mt-3">Already have an account? <a href="signin.html">Sign In</a></p>
     </div>
+</div>
 
-    <script>
-        document.getElementById("signup-form").addEventListener("submit", function(event) {
-            let response = grecaptcha.getResponse();
-            if (response.length === 0) {
-                alert("Please verify you are not a robot!");
-                event.preventDefault();
+<script>
+    document.getElementById("signup-form").addEventListener("submit", function(event) {
+        event.preventDefault(); // Prevent the default form submission
+
+        // Clear any previous error messages
+        document.getElementById('error-message').style.display = 'none';
+
+        // Get form values
+        const name = document.getElementById('name').value;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        if (!name || !email || !password) {
+            displayErrorMessage("All fields are required!");
+            return;
+        }
+
+        // Create user data object
+        const userData = {
+            name,
+            email,
+            password
+        };
+
+        // Make a POST request to your backend
+        fetch('http://localhost:5000/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(userData),
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(errorData => {
+                    throw new Error(errorData.message || 'Registration failed.');
+                });
             }
+            return response.json();
+        })
+        .then(data => {
+            if (data.message === 'User registered successfully') {
+                alert('Registration successful! Redirecting to Sign In page.');
+                window.location.href = 'signin.html'; // Ensure this is correct path
+            } else {
+                displayErrorMessage(data.message || 'Registration failed. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            displayErrorMessage(error.message || 'An error occurred during registration. Please try again later.');
         });
-    </script>
+    });
 
+    // Function to display error messages on the page
+    function displayErrorMessage(message) {
+        const errorMessageContainer = document.getElementById('error-message');
+        errorMessageContainer.innerText = message;  // Set the error message text
+        errorMessageContainer.style.display = 'block';  // Show the error message container
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
