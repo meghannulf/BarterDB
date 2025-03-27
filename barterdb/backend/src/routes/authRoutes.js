@@ -238,15 +238,4 @@ router.post("/logout", (req, res) => {
   });
 });
 
-router.get("/items", (req, res) => {
-  barterDb.all("SELECT * FROM items", [], (err, rows) => {
-    if (err) {
-      console.error("Error fetching all items:", err);
-      return res.status(500).json({ message: "Server error occurred." });
-    }
-
-    res.status(200).json(rows); // Return all items
-  });
-});
-
 module.exports = router;
