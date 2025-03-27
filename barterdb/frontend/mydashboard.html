@@ -41,8 +41,7 @@
                 <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
                 <li class="nav-item"><a class="nav-link" href="services.html">Services</a></li>
                 <li class="nav-item"><a class="nav-link" href="contact.html">Contact Us</a></li>
-                <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
-                <li class="nav-item"><a class="nav-link" href="signup.html">Sign Up</a></li>
+                <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
                 <li class="nav-item"><a class="nav-link" href="#" id="logout-btn">Logout</a></li>
             </ul>
         </div>
@@ -61,83 +60,109 @@
 
     <!-- Activity/Action Section -->
     <h4>Recent Activity</h4>
-    <ul id="recent-activity">
-        <li>Item 1: Borrowed</li>
-        <li>Item 2: Lent</li>
-    </ul>
+    <ul id="recent-activity"></ul> 
 
     <!-- Button to view items (can be customized based on your app) -->
     <div class="text-center mt-4">
         <a href="view-items.html" class="btn btn-primary">View Your Items</a>
     </div>
-
-    <!-- Logout Button -->
-    <div class="logout-btn">
-        <button class="btn btn-danger" id="logout-btn">Logout</button>
-    </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    // Check for authentication token
-    const authToken = localStorage.getItem('authToken');
-    const userId = localStorage.getItem('userId');
-
-    // If no token, redirect to sign-in page
-    if (!authToken || !userId) {
-        alert('Please log in to access the dashboard');
-        window.location.href = 'signin.html';
-        return;
-    }
-
-    // Fetch user details from backend
-    fetch(`http://localhost:5000/api/auth/user/${userId}`, { // updated with /api/auth
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-        },
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to fetch user details');
+    document.addEventListener('DOMContentLoaded', () => {
+        const authToken = localStorage.getItem('authToken');
+        const userId = localStorage.getItem('userId');
+    
+        // Redirect if not logged in
+        if (!authToken || !userId) {
+            alert('Please log in to access the dashboard');
+            window.location.href = 'signin.html';
+            return;
         }
-        return response.json();
-    })
-    .then(userData => {
-        // Populate user information
-        document.getElementById('userName').textContent = `Hello, ${userData.name || 'User'}!`;
-        document.getElementById('userEmail').textContent = userData.email || 'N/A';
-        document.getElementById('userId').textContent = userData.id || 'N/A';
-    })
-    .catch(error => {
-        console.error('Error fetching user details:', error);
-        alert('Unable to load user details. Please log in again.');
-        window.location.href = 'signin.html';
-    });
-
-    // Logout functionality
-    document.querySelectorAll('#logout-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Clear authentication data
+    
+        // Fetch user details
+        fetch(`http://localhost:5001/api/auth/user/${userId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch user details');
+            }
+            return response.json();
+        })
+        .then(userData => {
+            // Populate user information
+            document.getElementById('userName').textContent = `Hello, ${userData.name || 'User'}!`;
+            document.getElementById('userEmail').textContent = userData.email || 'N/A';
+            document.getElementById('userId').textContent = userData.id || 'N/A';
+        })
+        .catch(error => {
+            console.error('Error fetching user details:', error);
+            alert('Unable to load user details. Please log in again.');
+            window.location.href = 'signin.html';
+        });
+    
+        // Fetch recent activities
+        fetch(`http://localhost:5001/api/auth/user/${userId}/activity`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Failed to fetch recent activity");
+            }
+            return response.json();
+        })
+        .then(data => {
+            const activityList = document.getElementById("recent-activity");
+            activityList.innerHTML = ""; // Clear existing activity
+    
+            // Populate activity list
+            data.forEach(activity => {
+                const listItem = document.createElement("li");
+                const itemText = activity.item_name ? `${activity.item_name}: ` : '';
+                listItem.textContent = `${itemText}${activity.action} on ${new Date(activity.created_at).toLocaleString()}`;
+                activityList.appendChild(listItem);
+            });
+        })
+        .catch(error => {
+            console.error("Error fetching recent activity:", error);
+        });
+    
+        // Logout functionality
+        const logoutBtn = document.getElementById('logout-btn');
+        logoutBtn.addEventListener('click', () => {
             localStorage.removeItem('authToken');
             localStorage.removeItem('userId');
-            
-            // Optional: Call backend logout endpoint if needed
-            fetch('http://localhost:5000/api/auth/logout', {
+    
+            fetch(`http://localhost:5001/api/auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${authToken}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert('You have successfully logged out.');
+                    window.location.href = 'signin.html';
+                } else {
+                    throw new Error('Logout failed. Please try again.');
                 }
             })
-            .finally(() => {
-                alert('You have been logged out successfully');
-                window.location.href = 'signin.html';
+            .catch(error => {
+                console.error('Error during logout:', error);
+                alert('An error occurred while logging out.');
             });
         });
-    });
-});
+    });    
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

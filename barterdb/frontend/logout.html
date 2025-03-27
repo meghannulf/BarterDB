@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logout - BarterDB</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .logout-container {
+            max-width: 500px;
+            margin: auto;
+            padding: 40px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 100px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logout-container">
+        <h1>Logging Out...</h1>
+        <p>You are being securely logged out. Please wait...</p>
+    </div>
+
+    <script>
+        // Logout functionality
+        function logOut() {
+            // Clear authentication data from localStorage
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userId');
+
+            // Optional: Call backend logout endpoint
+            fetch('http://localhost:5001/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .finally(() => {
+                // Redirect to the sign-in page or homepage
+                window.location.href = 'signin.html';
+            });
+        }
+
+        // Trigger logout immediately
+        logOut();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
