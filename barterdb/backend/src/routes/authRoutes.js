@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const fs = require("fs");
 const db = require("../database");
 const { emailExists } = require("../database");
 const { addUser } = require("../database");
