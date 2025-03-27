@@ -9,7 +9,7 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const session = require("express-session");
-const { getUserById, getAllItems } = require("../database");
+const { getUserById, getAllItems, deleteItemById } = require("../database");
 const { addItem } = require("../database");
 const multer = require("multer");
 const path = require("path");
@@ -97,7 +97,10 @@ router.post("/register", (req, res) => {
   });
 });
 
-// multer configuration for handling photo uploads
+// Serve static files for uploads
+router.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Multer Configuration for Handling Photo Uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, "uploads");
@@ -117,8 +120,9 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+module.exports = upload;
 
-// Route to add items with optional photo upload
+// Route to Add Items with Optional Photo Upload
 router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
   const { userId } = req.user;
   const { name, description, available_quantity, item_type } = req.body;
@@ -130,8 +134,10 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
       .json({ message: "All fields except the photo are required" });
   }
 
-  // Check for uploaded photo
-  const photoPath = req.file ? req.file.path : null;
+  // Check for uploaded photo and construct public URL
+  const photoPath = req.file
+    ? `http://localhost:5001/api/auth/uploads/${req.file.filename}`
+    : null;
 
   // Call your database function to save the item details
   addItem(
@@ -156,7 +162,28 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
   );
 });
 
-// Route to fetch all items
+// route to delete items
+router.delete("/items/:id", (req, res) => {
+  const itemId = req.params.id;
+
+  deleteItemById(itemId, (err, changes) => {
+    if (err) {
+      return res
+        .status(500)
+        .json({ message: "Failed to delete item", error: err.message });
+    }
+
+    if (changes === 0) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    res
+      .status(200)
+      .json({ message: `Item with ID ${itemId} deleted successfully.` });
+  });
+});
+
+// Route to Fetch All Items
 router.get("/items", (req, res) => {
   getAllItems((err, rows) => {
     if (err) {
@@ -164,12 +191,22 @@ router.get("/items", (req, res) => {
       return res.status(500).json({ message: "Failed to fetch items" });
     }
 
-    console.log("Items fetched:", rows);
-    res.status(200).json(rows); // Return all items as JSON
+    // Add correct URL prefix to photo paths
+    const updatedRows = rows.map((item) => {
+      if (item.photo) {
+        item.photo = `http://localhost:5001/uploads/${path.basename(
+          item.photo
+        )}`;
+      }
+      return item;
+    });
+
+    console.log("Items fetched and updated with photo URLs:", updatedRows);
+    res.status(200).json(updatedRows); // Return updated items with accessible photo URLs
   });
 });
 
-// Get the logged in Users items
+// Route to Fetch Items by User ID
 router.get("/items/user/:id", authenticateToken, (req, res) => {
   const userId = req.params.id;
 
@@ -180,13 +217,23 @@ router.get("/items/user/:id", authenticateToken, (req, res) => {
       return res.status(500).json({ message: "Server error occurred." });
     }
 
-    if (items.length === 0) {
+    // Add correct URL prefix to photo paths
+    const updatedItems = items.map((item) => {
+      if (item.photo) {
+        item.photo = `http://localhost:5001/uploads/${path.basename(
+          item.photo
+        )}`;
+      }
+      return item;
+    });
+
+    if (updatedItems.length === 0) {
       return res.status(404).json({ message: "No items found for this user." });
     }
 
     res.status(200).json({
       userId,
-      items,
+      items: updatedItems,
     });
   });
 });

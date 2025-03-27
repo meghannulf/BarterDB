@@ -230,6 +230,19 @@ function getItemsByUserId(userId, callback) {
   );
 }
 
+// Function to delete items
+function deleteItemById(itemId, callback) {
+  barterDb.run("DELETE FROM items WHERE id = ?", [itemId], function (err) {
+    if (err) {
+      console.error("Error deleting item:", err);
+      callback(err, null);
+    } else {
+      console.log(`Item with ID ${itemId} deleted successfully.`);
+      callback(null, this.changes); // Return the number of rows affected
+    }
+  });
+}
+
 // Function to check if email exists
 function emailExists(email, callback) {
   barterDb.get("SELECT id FROM users WHERE email = ?", [email], (err, row) => {
@@ -342,4 +355,5 @@ module.exports = {
   getItemsByUserId,
   getRecentActivity,
   logUserActivity,
+  deleteItemById,
 };

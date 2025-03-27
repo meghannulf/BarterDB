@@ -13,6 +13,11 @@ const JWT_SECRET = process.env.JWT_SECRET || "getoffmylawnkid";
 const app = express();
 const PORT = 5001;
 
+app.use(
+  "barterdb/backend/src/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
 // Ensure the databases directory exists
 const databasesDir = path.join(__dirname, "databases");
 if (!fs.existsSync(databasesDir)) {

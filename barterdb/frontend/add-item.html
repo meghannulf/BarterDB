@@ -25,7 +25,7 @@
 
 <div class="container mt-5">
     <h2>Add a New Item</h2>
-    <form id="addItemForm">
+    <form id="addItemForm" enctype="multipart/form-data">
         <div class="mb-3">
             <label for="name" class="form-label">Item Name</label>
             <input type="text" id="name" class="form-control" required>
@@ -44,6 +44,10 @@
                 <option value="Product">Product</option>
                 <option value="Service">Service</option>
             </select>
+        </div>
+        <div class="mb-3">
+            <label for="photo" class="form-label">Photo</label>
+            <input type="file" id="photo" class="form-control" accept="image/*">
         </div>
         <button type="submit" class="btn btn-primary">Add Item</button>
     </form>
@@ -64,25 +68,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle form submission
     document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const itemData = {
-            name: document.getElementById('name').value,
-            description: document.getElementById('description').value,
-            available_quantity: document.getElementById('quantity').value,
-            item_type: document.getElementById('type').value
-        };
 
-        const errorDiv = document.querySelector('.alert-danger');
-        if (errorDiv) errorDiv.remove(); // Remove previous error messages if any
+        // Create a FormData object to include the file (photo)
+        const formData = new FormData();
+        formData.append('name', document.getElementById('name').value);
+        formData.append('description', document.getElementById('description').value);
+        formData.append('available_quantity', document.getElementById('quantity').value);
+        formData.append('item_type', document.getElementById('type').value);
+
+        const photo = document.getElementById('photo').files[0];
+        if (photo) {
+            formData.append('photo', photo);
+        }
 
         try {
             const response = await fetch('http://localhost:5001/api/auth/items', {
                 method: 'POST',
-                credentials: 'include',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}` // Add JWT token
+                    'Authorization': `Bearer ${authToken}`
                 },
-                body: JSON.stringify(itemData)
+                body: formData // Pass the FormData object directly
             });
 
             if (response.ok) {
