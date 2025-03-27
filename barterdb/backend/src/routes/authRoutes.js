@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../database");
-const multer = require("multer");
 const { emailExists } = require("../database");
 const { addUser } = require("../database");
 const { loginUser } = require("../database");
@@ -11,20 +10,10 @@ const jwt = require("jsonwebtoken");
 const session = require("express-session");
 const { getUserById, getAllItems } = require("../database");
 const { addItem } = require("../database");
+const multer = require("multer");
+const path = require("path");
 
 const JWT_SECRET = process.env.JWT_SECRET || "getoffmylawnkid";
-
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "./uploads/"); // Directory where files will be stored
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname); // Unique file name
-  },
-});
-
-const upload = multer({ storage: storage });
 
 // Authentication middleware (can be in a separate middleware file)
 const authenticateToken = (req, res, next) => {
@@ -107,18 +96,43 @@ router.post("/register", (req, res) => {
   });
 });
 
+// multer configuration for handling photo uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "uploads");
+
+    // Ensure the 'uploads/' directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      console.log("Uploads directory created successfully.");
+    }
+
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Append a timestamp to avoid duplicate file names
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const upload = multer({ storage });
+
+// Route to add items with optional photo upload
 router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
   const { userId } = req.user;
   const { name, description, available_quantity, item_type } = req.body;
 
+  // Validate required fields
   if (!userId || !name || !description || !available_quantity || !item_type) {
     return res
       .status(400)
       .json({ message: "All fields except the photo are required" });
   }
 
-  const photoPath = req.file ? req.file.path : null; // Get file path if uploaded
+  // Check for uploaded photo
+  const photoPath = req.file ? req.file.path : null;
 
+  // Call your database function to save the item details
   addItem(
     userId,
     name,
@@ -131,9 +145,12 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
         console.error("Error adding item:", err);
         return res.status(500).json({ message: "Failed to add item" });
       }
-      res
-        .status(201)
-        .json({ message: "Item added successfully", itemId, photo: photoPath });
+
+      res.status(201).json({
+        message: "Item added successfully",
+        itemId,
+        photo: photoPath,
+      });
     }
   );
 });
