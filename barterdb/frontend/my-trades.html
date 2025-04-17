@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Trades - BarterDB</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet"/>
+  <style>
+    /* Your existing styles */
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+      <a class="navbar-brand fw-bold text-primary" href="#">BarterDB</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
+          <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
+          <li class="nav-item"><a class="nav-link" href="services.html">Services</a></li>
+          <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
+          <li class="nav-item"><a class="nav-link" href="my-trades.html">My Trades</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" onclick="logOut()">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="container">
+      <h1>My Trades</h1>
+      <p>Manage your trades, offers, and track your transactions.</p>
+    </div>
+  </section>
+
+  <div class="container mt-5">
+    <!-- Active Trades Section -->
+    <h3 class="text-center page-title">Active Trades</h3>
+    <div id="activeTrades" class="mt-4">
+      <ul class="list-group" id="activeTradesList">
+        <!-- Active trades will be inserted here -->
+      </ul>
+    </div>
+
+    <!-- Past Trades Section
+    <h3 class="text-center page-title">Past Trades</h3>
+    <div id="pastTrades" class="mt-4">
+      <ul class="list-group" id="pastTradesList">
+      </ul>
+    </div>
+  </div> -->
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const authToken = localStorage.getItem('authToken');
+      const userId = localStorage.getItem('userId');
+
+      if (!authToken || !userId) {
+        window.location.href = 'signin.html';  // Redirect if no authToken or userId
+        return;
+      }
+
+      // Fetch active trades (action = 'initiated')
+      fetchActiveTrades(userId, authToken);
+
+      // Fetch past trades (completed/archived)
+      fetchPastTrades(userId, authToken);
+    });
+
+    // Function to fetch active trades
+    function fetchActiveTrades(userId, authToken) {
+      fetch(`http://localhost:5001/api/auth/my-transactions/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data || data.length === 0) {
+          alert("No active trades found.");
+          return;
+        }
+
+        const activeTradesList = document.getElementById('activeTradesList');
+        data.forEach(trade => {
+          const listItem = document.createElement('li');
+          listItem.classList.add('list-group-item');
+
+          listItem.textContent = `Offer for ${trade.item_name} on ${new Date(trade.created_at).toLocaleString()}`;
+
+          // Add Accept and Decline buttons only for initiated trades
+          if (trade.action === 'initiated') {
+            const acceptButton = document.createElement('button');
+            acceptButton.classList.add('btn', 'btn-success', 'btn-sm', 'btn-accept');
+            acceptButton.textContent = 'Accept';
+            acceptButton.onclick = () => acceptTrade(trade.id);
+
+            const declineButton = document.createElement('button');
+            declineButton.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-decline');
+            declineButton.textContent = 'Decline';
+            declineButton.onclick = () => declineTrade(trade.id);
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.classList.add('item-actions');
+            actionsDiv.appendChild(acceptButton);
+            actionsDiv.appendChild(declineButton);
+
+            listItem.appendChild(actionsDiv);
+          }
+
+          activeTradesList.appendChild(listItem);
+        });
+
+      })
+      .catch(error => {
+        console.error('Error fetching active trades:', error);
+        alert("Failed to load active trades.");
+      });
+    }
+
+    // // Function to fetch past trades (from past_trades table)
+    // function fetchPastTrades(userId, authToken) {
+    //   fetch(`http://localhost:5001/api/auth/past-trades/${userId}`, {
+    //     method: 'GET',
+    //     headers: {
+    //       'Authorization': `Bearer ${authToken}`,
+    //       'Content-Type': 'application/json',
+    //     }
+    //   })
+    //   .then(res => res.json())
+    //   .then(data => {
+    //     if (!data || data.length === 0) {
+    //       alert("No past trades found.");
+    //       return;
+    //     }
+
+    //     const pastTradesList = document.getElementById('pastTradesList');
+    //     data.forEach(trade => {
+    //       const listItem = document.createElement('li');
+    //       listItem.classList.add('list-group-item');
+
+    //       listItem.textContent = `Offer for ${trade.item_name} on ${new Date(trade.created_at).toLocaleString()}`;
+
+    //       pastTradesList.appendChild(listItem);
+    //     });
+    //   })
+    //   .catch(error => {
+    //     console.error('Error fetching past trades:', error);
+    //     alert("Failed to load past trades.");
+    //   });
+    // }
+
+    // Accept trade
+    function acceptTrade(transactionId) {
+      const authToken = localStorage.getItem('authToken');
+
+      fetch(`http://localhost:5001/api/auth/trade/accept/${transactionId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message);
+        updateTradeUI(transactionId, 'accepted');
+      })
+      .catch(error => {
+        console.error('Error accepting trade:', error);
+        alert('Failed to accept the trade.');
+      });
+    }
+
+    // Decline trade
+    function declineTrade(transactionId) {
+      const authToken = localStorage.getItem('authToken');
+
+      fetch(`http://localhost:5001/api/auth/trade/decline/${transactionId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message);
+        updateTradeUI(transactionId, 'declined');
+      })
+      .catch(error => {
+        console.error('Error declining trade:', error);
+        alert('Failed to decline the trade.');
+      });
+    }
+
+    // Helper function to update the UI after accepting or declining a trade
+    function updateTradeUI(transactionId, status) {
+      const tradeItem = document.getElementById(`trade-${transactionId}`);
+      if (tradeItem) {
+        const statusLabel = tradeItem.querySelector('.status-label');
+        if (statusLabel) {
+          statusLabel.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        const actionButtons = tradeItem.querySelector('.item-actions');
+        if (actionButtons) {
+          actionButtons.style.display = 'none';
+        }
+      }
+    }
+
+    // Log out function
+    function logOut() {
+      fetch('http://localhost:5001/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.message === "Logged out successfully") {
+          console.log('Logout success:', data.message);
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userId');
+          window.location.href = 'signin.html';
+        } else {
+          console.error('Logout failed:', data.message);
+          alert('Failed to log out. Please try again.');
+        }
+      })
+      .catch(err => {
+        console.error('Logout error:', err);
+        alert('An error occurred while logging out.');
+      });
+    }
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

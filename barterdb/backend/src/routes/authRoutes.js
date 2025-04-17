@@ -9,10 +9,12 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const session = require("express-session");
-const { getUserById, getAllItems, deleteItemById, getAllUsers, deleteUserById, findExchangeMatch, createTransaction, calculateFinalValue } = require("../database");
+const { getUserById, getPastTrades, acceptTrade, deleteTradeById, getItemsByUserId, updateTradeAction, getAllTransactions, getAvailableItems, getAllItems, deleteItemById, getAllUsers, deleteUserById, findExchangeMatch, createTransaction, calculateFinalValue } = require("../database");
 const { addItem } = require("../database");
 const multer = require("multer");
 const path = require("path");
+const crypto = require('crypto');
+
 
 const JWT_SECRET = process.env.JWT_SECRET || "getoffmylawnkid";
 
@@ -27,10 +29,12 @@ const authenticateToken = (req, res, next) => {
     if (err) {
       return res.status(403).json({ message: "Invalid token" });
     }
-    req.user = user; // Attach user data to the request
+    req.user = user; // This should attach the decoded user data to req.user
+    console.log('Authenticated user:', req.user); // Check the decoded user data
     next();
   });
 };
+
 
 // Route for user activity
 router.get("/user/:id/activity", authenticateToken, (req, res) => {
@@ -53,6 +57,8 @@ const transporter = nodemailer.createTransport({
     pass: "P@ssword123", // Replace with your email password or use an app password for Gmail
   },
 });
+
+
 
 // Route for user registration
 router.post("/register", (req, res) => {
@@ -160,6 +166,55 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
   );
 });
 
+router.get("/items/available/:userId", (req, res) => {
+  const userId = req.params.userId;
+
+  // Fetch available items (excluding the ones owned by the logged-in user)
+  getAvailableItems(userId, (err, items) => {
+    if (err) {
+      console.error("Error fetching available items:", err);
+      return res.status(500).json({ message: "Error fetching available items", error: err.message });
+    }
+
+    if (!items || items.length === 0) {
+      return res.status(404).json({ message: "No available items for trade." });
+    }
+
+    // Return the fetched available items
+    res.status(200).json({ items });
+  });
+});
+// Route to Fetch Items by User ID
+router.get("/items/user/:id", authenticateToken, (req, res) => {
+  const userId = req.params.id;
+
+  // Use the getItemsByUserId function
+  getItemsByUserId(userId, (err, items) => {
+    if (err) {
+      console.error("Error fetching items for user:", err);
+      return res.status(500).json({ message: "Server error occurred." });
+    }
+
+    // Add correct URL prefix to photo paths
+    const updatedItems = items.map((item) => {
+      if (item.photo) {
+        item.photo = `http://localhost:5001/api/auth/uploads/${path.basename(
+          item.photo
+        )}`;
+      }
+      return item;
+    });
+
+    if (updatedItems.length === 0) {
+      return res.status(404).json({ message: "No items found for this user." });
+    }
+
+    res.status(200).json({
+      userId,
+      items: updatedItems,
+    });
+  });
+});
 
 // route to delete items
 router.delete("/items/:id", (req, res) => {
@@ -202,38 +257,6 @@ router.get("/items", (req, res) => {
 
     console.log("Items fetched and updated with photo URLs:", updatedRows);
     res.status(200).json(updatedRows); // Return updated items with accessible photo URLs
-  });
-});
-
-// Route to Fetch Items by User ID
-router.get("/items/user/:id", authenticateToken, (req, res) => {
-  const userId = req.params.id;
-
-  // Use the getItemsByUserId function
-  getItemsByUserId(userId, (err, items) => {
-    if (err) {
-      console.error("Error fetching items for user:", err);
-      return res.status(500).json({ message: "Server error occurred." });
-    }
-
-    // Add correct URL prefix to photo paths
-    const updatedItems = items.map((item) => {
-      if (item.photo) {
-        item.photo = `http://localhost:5001/api/auth/uploads/${path.basename(
-          item.photo
-        )}`;
-      }
-      return item;
-    });
-
-    if (updatedItems.length === 0) {
-      return res.status(404).json({ message: "No items found for this user." });
-    }
-
-    res.status(200).json({
-      userId,
-      items: updatedItems,
-    });
   });
 });
 
@@ -287,72 +310,117 @@ router.post("/login", (req, res) => {
 
 // Trade Routes
 
-// Route to initiate a trade
+// Route to initiate a trade (with userId extracted from the token)
 router.post('/trade/initiate', authenticateToken, (req, res) => {
-  const { productNeeded, itemOffered, amountNeeded, amountOffered, cost1, cost2 } = req.body;
+  const { productNeeded, itemOffered, quantityNeeded, quantityOffered } = req.body;
 
-  findExchangeMatch(productNeeded, itemOffered, (err, match) => {
-    if (err) return res.status(500).json({ message: err.message });
-    if (!match) return res.status(404).json({ message: "No suitable match found" });
+  const userId = req.user.userId; // Get userId from the decoded token (not from request body)
 
-    const equivalenceRatio = match.equivalence_ratio;
+  if (!userId) {
+    return res.status(400).json({ message: 'User ID is missing from the token' });
+  }
 
-    calculateFinalValue(amountNeeded, equivalenceRatio, cost1, (err, finalValue) => {
-      if (err) return res.status(500).json({ message: err.message });
+  // Ensure that all necessary trade fields are present
+  if (!productNeeded || !itemOffered || !quantityNeeded || !quantityOffered) {
+    return res.status(400).json({ message: 'All trade fields are required' });
+  }
 
-      // Continue with transaction creation if final value is valid
-      createTransaction(req.user.id, match.user_id, productNeeded, itemOffered, generateTradeHash(), (err, result) => {
-        if (err) return res.status(500).json({ message: err.message });
-        res.status(200).json({ message: "Transaction initiated", result });
-      });
-    });
-  });
-});
+  // Call the createTransaction function to initiate the trade
+  createTransaction(userId, itemOffered, productNeeded, quantityNeeded, quantityOffered, (err, result) => {
+    if (err) {
+      console.error("Error initiating trade:", err);
+      return res.status(500).json({ message: "Failed to initiate trade", error: err.message });
+    }
 
-// Route to verify the trade
-router.post('/trade/verify', authenticateToken, (req, res) => {
-  const { tradeHash, itemId1, itemId2 } = req.body;
-
-  verifyTrade(tradeHash, itemId1, itemId2, (err, tradeDetails) => {
-    if (err) return res.status(500).json({ message: err.message });
-
-    const { trade, equivalenceRatio } = tradeDetails;
-
+    // Return the transaction ID to the client
     res.status(200).json({
-      message: "Trade verified successfully",
-      trade,
-      equivalenceRatio
+      message: "Transaction initiated successfully.",
+      transactionId: result.transactionId,
     });
   });
 });
 
-// Route to complete the trade
-router.post('/trade/complete', authenticateToken, (req, res) => {
-  const { tradeHash, itemId1, itemId2 } = req.body;
+// Route to get active (initiated) trades for a user
+router.get('/my-transactions/:userId', authenticateToken, (req, res) => {
+  const userId = req.params.userId;
+  console.log('Fetching active transactions for user:', userId);  // Log to verify the route is being hit
 
-  verifyTrade(tradeHash, itemId1, itemId2, (err, tradeDetails) => {
-    if (err) return res.status(500).json({ message: err.message });
+  // Fetch active trades (action = 'initiated')
+  getAllTransactions(userId, (err, transactions) => {
+    if (err) {
+      console.error('Error fetching transactions:', err);
+      return res.status(500).json({ message: 'Error fetching transactions', error: err.message });
+    }
 
-    const { trade, equivalenceRatio } = tradeDetails;
+    console.log('Fetched active transactions:', transactions);  // Log the result from getAllTransactions
 
-    // Transfer the item from X to A and from B to Y
-    barterDb.run(
-      "UPDATE items SET user_id = ? WHERE id = ?",
-      [req.user.id, itemId1],
-      (err) => {
-        if (err) return res.status(500).json({ message: "Error transferring items" });
+    // Return an empty array if no active transactions are found, rather than returning a 404
+    res.status(200).json(transactions || []);  // Ensure an empty array is returned if no trades are found
+  });
+});
 
-        barterDb.run(
-          "UPDATE items SET user_id = ? WHERE id = ?",
-          [trade.user_id, itemId2],
-          (err) => {
-            if (err) return res.status(500).json({ message: "Error transferring items" });
+// Route to get past trade history for a user
+router.get('/past-trades/:userId', authenticateToken, (req, res) => {
+  const userId = req.params.userId;
+  console.log('Fetching past trades for user:', userId);
 
-            res.status(200).json({ message: "Trade completed successfully!" });
-          }
-        );
+  getPastTrades(userId, (err, pastTrades) => {
+    if (err) {
+      console.error('Error fetching past trades:', err);
+      return res.status(500).json({ message: 'Error fetching past trades', error: err.message });
+    }
+
+    if (!pastTrades || pastTrades.length === 0) {
+      return res.status(404).json({ message: 'No past trades found for this user.' });
+    }
+
+    res.status(200).json(pastTrades);  // Return the past trades if found
+  });
+});
+
+
+
+router.post('/trade/accept/:transactionId', authenticateToken, (req, res) => {
+  const transactionId = req.params.transactionId;
+  const userId = req.user.userId;
+
+  console.log(`Accepting trade for user: ${userId}, transactionId: ${transactionId}`);
+
+  // Call the acceptTrade function to update the status
+  acceptTrade(transactionId, userId, (err, result) => {
+    if (err) {
+      console.error('Error accepting trade:', err);
+      return res.status(500).json({ message: 'Error accepting trade', error: err.message });
+    }
+
+    res.status(200).json(result);  // Return the success result if trade is accepted
+  });
+});
+
+
+// Decline the trade
+// Decline the trade and delete it
+router.post('/trade/decline/:transactionId', authenticateToken, (req, res) => {
+  const { transactionId } = req.params; // Get transactionId from the route parameter
+  const userId = req.user.userId;  // Get userId from the decoded token
+
+  // Update the trade status to 'declined'
+   updateTradeAction(transactionId, userId, 'declined', (err, result) => {
+    if (err) {
+      console.error("Error declining trade:", err);
+      return res.status(500).json({ message: "Failed to decline the trade", error: err.message });
+    }
+
+    // Call the deleteTradeById function from database.js
+    deleteTradeById(transactionId, (err, deleteResult) => {
+      if (err) {
+        console.error("Error deleting trade:", err);
+        return res.status(500).json({ message: "Failed to delete the trade", error: err.message });
       }
-    );
+
+      // Return a success message after deletion
+      res.status(200).json(deleteResult);
+    });
   });
 });
 
@@ -397,7 +465,9 @@ router.get("/user/:id", authenticateToken, (req, res) => {
   });
 });
 
+// get list of users for admin page
 router.get("/users", (req, res) => {
+
   // Call the getAllUsers function to fetch the list of users
   getAllUsers((err, users) => {
     if (err) {
@@ -408,6 +478,7 @@ router.get("/users", (req, res) => {
     res.status(200).json(users); // Return the list of users
   });
 });
+
 
 // Delete a user (admin only)
 router.delete("/users/:id", authenticateToken, (req, res) => {

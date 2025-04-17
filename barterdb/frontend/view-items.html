@@ -157,19 +157,33 @@
   <script>
     function logOut() {
       fetch('http://localhost:5001/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json'
+          }
       })
       .then(res => res.json())
       .then(data => {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('userId');
-        window.location.href = 'signin.html';
+          if (data.message === "Logged out successfully") {
+              console.log('Logout success:', data.message);
+              
+              // Clear the auth token and user ID from localStorage
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('userId');
+              
+              // Redirect to the sign-in page after successful logout
+              window.location.href = 'signin.html';
+          } else {
+              console.error('Logout failed:', data.message);
+              alert('Failed to log out. Please try again.');
+          }
       })
-      .catch(err => console.error('Logout error', err));
-    }
+      .catch(err => {
+          console.error('Logout error:', err);
+          alert('An error occurred while logging out.');
+      });
+  }
+
 
     document.addEventListener('DOMContentLoaded', () => {
       const itemList = document.getElementById('itemList');

@@ -133,14 +133,16 @@
       const loadingSpinner = document.getElementById('loadingSpinner');
       const itemList = document.getElementById('itemList');
       const noItemsMessage = document.getElementById('noItemsMessage');
+      const authToken = localStorage.getItem('authToken');
 
       // Show loading spinner while fetching items
       loadingSpinner.classList.remove('d-none');
 
       // Fetch items from the server
-      fetch('http://localhost:5001/api/auth/items', {
+        fetch('http://localhost:5001/api/auth/items/available', {
         method: 'GET',
         headers: {
+         'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
       })

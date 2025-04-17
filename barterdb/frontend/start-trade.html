@@ -1,18 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trade - BarterDB</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
     /* Same styles as before */
   </style>
 </head>
+
 <body>
   <!-- Navbar and Hero Section -->
   <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-    <!-- Navbar Content -->
+    <div class="container">
+      <a class="navbar-brand" href="#">BarterDB</a>
+      <!-- Add other navbar content as needed -->
+    </div>
   </nav>
 
   <section class="hero-section">
@@ -26,50 +31,149 @@
     <form id="tradeForm">
       <div class="mb-3">
         <label for="productNeeded" class="form-label">Product Needed</label>
-        <input type="text" class="form-control" id="productNeeded" required />
+        <select class="form-control" id="productNeeded" required>
+          <option value="">Select Product Needed</option>
+        </select>
       </div>
+
       <div class="mb-3">
         <label for="itemOffered" class="form-label">Item Offered</label>
-        <input type="text" class="form-control" id="itemOffered" required />
+        <select class="form-control" id="itemOffered" required>
+          <option value="">Select Item Offered</option>
+        </select>
       </div>
+
       <div class="mb-3">
         <label for="quantityNeeded" class="form-label">Quantity Needed</label>
         <input type="number" class="form-control" id="quantityNeeded" required />
       </div>
+
       <div class="mb-3">
         <label for="quantityOffered" class="form-label">Quantity Offered</label>
         <input type="number" class="form-control" id="quantityOffered" required />
       </div>
+
       <button type="submit" class="btn btn-primary">Initiate Trade</button>
     </form>
   </div>
 
   <script>
-    document.getElementById('tradeForm').addEventListener('submit', (e) => {
-      e.preventDefault();
+    document.addEventListener('DOMContentLoaded', () => {
+      // Fetch authToken and userId from localStorage
+      const authToken = localStorage.getItem('authToken');
+      const userId = localStorage.getItem('userId'); // Get the user ID from localStorage
 
-      const tradeData = {
-        productNeeded: document.getElementById('productNeeded').value,
-        itemOffered: document.getElementById('itemOffered').value,
-        quantityNeeded: document.getElementById('quantityNeeded').value,
-        quantityOffered: document.getElementById('quantityOffered').value,
-      };
+      // Check if authToken and userId exist, otherwise redirect to sign-in page
+      if (!authToken || !userId) {
+        window.location.href = 'signin.html'; // Redirect if no authToken or userId
+        return;
+      }
 
-      fetch('http://localhost:5001/api/auth/trade/initiate', {
-        method: 'POST',
+      console.log('authToken:', authToken);  // Log to verify token retrieval
+      console.log('userId:', userId);        // Log to verify userId retrieval
+
+      // Fetch available items (items the user can select as product needed)
+      fetch(`http://localhost:5001/api/auth/items/available/${userId}`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(tradeData),
+          'Authorization': `Bearer ${authToken}`, // Correct token usage in the header
+          'Content-Type': 'application/json'
+        }
       })
-      .then((response) => response.json())
-      .then((data) => {
-        alert(data.message);
+        .then(res => res.json())
+        .then(data => {
+          console.log('Fetched available items:', data);  // Log response data to verify available items
+
+          const productNeededSelect = document.getElementById('productNeeded');
+
+          if (data.items && data.items.length > 0) {
+            // Populate the "Product Needed" dropdown with available items for trade
+            data.items.forEach(item => {
+              const option = document.createElement('option');
+              option.value = item.id;
+              option.textContent = item.name;
+              productNeededSelect.appendChild(option);
+            });
+          } else {
+            productNeededSelect.innerHTML = '<option>No products available for trade</option>';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching available items:', error);
+          alert("Failed to load available products. Please check the console for details.");
+        });
+
+      // Fetch user's own items (items they can offer for trade)
+      fetch(`http://localhost:5001/api/auth/items/user/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${authToken}`, // Correct token usage in the header
+          'Content-Type': 'application/json'
+        }
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log('Fetched user items:', data);  // Log response data to verify user items
+
+          const itemOfferedSelect = document.getElementById('itemOffered');
+
+          if (data.items && data.items.length > 0) {
+            // Populate the "Item Offered" dropdown with user's own items
+            data.items.forEach(item => {
+              const option = document.createElement('option');
+              option.value = item.id;
+              option.textContent = item.name;
+              itemOfferedSelect.appendChild(option);
+            });
+          } else {
+            itemOfferedSelect.innerHTML = '<option>No items available to offer</option>';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching user items:', error);
+          alert("Failed to load your items. Please check the console for details.");
+        });
+
+    // Handle trade form submission
+    // Handle trade form submission
+    document.getElementById('tradeForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+
+  // Remove userId from the tradeData
+    const tradeData = {
+      productNeeded: document.getElementById('productNeeded').value,
+      itemOffered: document.getElementById('itemOffered').value,
+      quantityNeeded: document.getElementById('quantityNeeded').value,
+      quantityOffered: document.getElementById('quantityOffered').value,
+    };
+
+    // Send the request without the userId in the body
+    fetch('http://localhost:5001/api/auth/trade/initiate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(tradeData),
+    })
+      .then(response => response.json())
+      .then(data => {
+        alert(data.message); // Show message received from server
+        if (data.transactionId) {
+          console.log("Transaction ID:", data.transactionId);
+
+          // Redirect to the my-dashboard.html page after successful trade initiation
+          window.location.href = 'my-dashboard.html'; // Redirect to my-dashboard.html
+        }
       })
       .catch((error) => {
         console.error('Error:', error);
+        alert("An error occurred while initiating the trade.");
       });
+  });
+
     });
   </script>
 </body>
+
 </html>

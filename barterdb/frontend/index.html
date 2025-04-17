@@ -81,6 +81,7 @@
           <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
           <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
           <li class="nav-item"><a class="nav-link" href="signup.html">Sign Up</a></li>
+          <li class="nav-item"><a class="nav-link" href="mydashboard.html">Dashboard</a></li>
           <li class="nav-item"><a class="nav-link" href="logout.html" onclick="logOut()">Logout</a></li>
         </ul>
       </div>
@@ -138,24 +139,33 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     function logOut() {
-      fetch('http://localhost:5001/api/auth/logout', {
+    fetch('http://localhost:5001/api/auth/logout', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          console.log(data.message);
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userId');
-          window.location.href = 'signin.html';
-        })
-        .catch((error) => {
-          console.error('Error during logout:', error);
-          alert('Could not log out. Please try again.');
-        });
-    }
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.message === "Logged out successfully") {
+            console.log('Logout success:', data.message);
+            
+            // Clear the auth token and user ID from localStorage
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userId');
+            
+            // Redirect to the sign-in page after successful logout
+            window.location.href = 'signin.html';
+        } else {
+            console.error('Logout failed:', data.message);
+            alert('Failed to log out. Please try again.');
+        }
+    })
+    .catch(err => {
+        console.error('Logout error:', err);
+        alert('An error occurred while logging out.');
+    });
+}
   </script>
 </body>
 </html>

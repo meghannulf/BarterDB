@@ -116,6 +116,7 @@
         return response.json();
       })
       .then(data => {
+        console.log(data);  // Log the data received from the backend
         if (data.token && data.userId) {
           localStorage.setItem('authToken', data.token);
           localStorage.setItem('userId', data.userId);

@@ -102,8 +102,7 @@
                 <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
                 <li class="nav-item"><a class="nav-link" href="services.html">Services</a></li>
                 <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
-                <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
-                <li class="nav-item"><a class="nav-link" href="signup.html">Sign Up</a></li>
+                <li class="nav-item"><a class="nav-link" href="my-trades.html">My Trades</a></li>
                 <li class="nav-item"><a class="nav-link" href="#" onclick="logOut()">Logout</a></li>
             </ul>
         </div>
@@ -146,20 +145,37 @@
         })
         .then(res => res.json())
         .then(data => {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('userId');
-            window.location.href = 'signin.html';
+            if (data.message === "Logged out successfully") {
+                console.log('Logout success:', data.message);
+                
+                // Clear the auth token and user ID from localStorage
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userId');
+                
+                // Redirect to the sign-in page after successful logout
+                window.location.href = 'signin.html';
+            } else {
+                console.error('Logout failed:', data.message);
+                alert('Failed to log out. Please try again.');
+            }
         })
-        .catch(err => console.error('Logout error', err));
+        .catch(err => {
+            console.error('Logout error:', err);
+            alert('An error occurred while logging out.');
+        });
     }
 
+
     document.addEventListener('DOMContentLoaded', () => {
-        const itemList = document.getElementById('itemList');
-
         const authToken = localStorage.getItem('authToken');
-        if (!authToken) return window.location.href = 'signin.html';
+        const userId = localStorage.getItem('userId');  // Get the user ID from localStorage
 
-        fetch('http://localhost:5001/api/auth/items', {
+        if (!authToken || !userId) {
+            window.location.href = 'signin.html';  // Redirect if no authToken or userId
+            return;
+        }
+
+        fetch(`http://localhost:5001/api/auth/items/user/${userId}`, {
             headers: {
                 'Authorization': `Bearer ${authToken}`,
                 'Content-Type': 'application/json'
@@ -167,35 +183,32 @@
         })
         .then(res => res.json())
         .then(data => {
-            if (!Array.isArray(data) || data.length === 0) {
-                itemList.innerHTML = '<p class="text-muted">No items listed yet.</p>';
-                return;
-            }
+            if (data.items && data.items.length > 0) {
+                const itemList = document.getElementById('itemList');
+                data.items.forEach(item => {
+                    const photo = item.photo ? `${item.photo}` : 'fallback.png';
+                    const card = document.createElement('div');
+                    card.className = 'item-card card';
+                    card.innerHTML = `
+                        ${photo ? `<img src="${photo}" class="card-img-top" alt="${item.name}">` : ''}
+                        <div class="card-body">
+                            <h5>${item.name}</h5>
+                            <p>${item.description}</p>
+                            <p><strong>Available:</strong> ${item.available_quantity}</p>
+                            <div class="item-actions">
+                                <a href="start-trade.html?id=${item.id}" class="btn btn-primary btn-sm">Trade</a>
+                                <button class="btn btn-outline-danger btn-sm delete-btn" data-id="${item.id}">Delete</button>
+                            </div>
+                        </div>`;
+                    itemList.appendChild(card);
 
-            data.forEach(item => {
-                const photo = item.photo ? `${item.photo}` : 'fallback.png';
-                const card = document.createElement('div');
-                card.className = 'item-card card';
-                card.innerHTML = `
-                    ${photo ? `<img src="${photo}" class="card-img-top" alt="${item.name}">` : ''}
-                    <div class="card-body">
-                        <h5>${item.name}</h5>
-                        <p>${item.description}</p>
-                        <p><strong>Available:</strong> ${item.available_quantity}</p>
-                        <div class="item-actions">
-                            <a href="trade.html?id=${item.id}" class="btn btn-primary btn-sm">Trade</a>
-                            <button class="btn btn-outline-danger btn-sm delete-btn" data-id="${item.id}">Delete</button>
-                        </div>
-                    </div>`;
-                itemList.appendChild(card);
-            });
-
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-id');
-                    deleteItem(id);
+                    // Add event listener for the delete button
+                    const deleteBtn = card.querySelector('.delete-btn');
+                    deleteBtn.addEventListener('click', () => deleteItem(item.id));
                 });
-            });
+            } else {
+                itemList.innerHTML = '<p class="text-muted">No items listed yet.</p>';
+            }
         })
         .catch(err => {
             alert('Error fetching items.');

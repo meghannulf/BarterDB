@@ -31,22 +31,34 @@
     <script>
         // Logout functionality
         function logOut() {
-            // Clear authentication data from localStorage
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('userId');
-
-            // Optional: Call backend logout endpoint
             fetch('http://localhost:5001/api/auth/logout', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 }
             })
-            .finally(() => {
-                // Redirect to the sign-in page or homepage
-                window.location.href = 'signin.html';
+            .then(res => res.json())
+            .then(data => {
+                if (data.message === "Logged out successfully") {
+                    console.log('Logout success:', data.message);
+                    
+                    // Clear the auth token and user ID from localStorage
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userId');
+                    
+                    // Redirect to the sign-in page after successful logout
+                    window.location.href = 'signin.html';
+                } else {
+                    console.error('Logout failed:', data.message);
+                    alert('Failed to log out. Please try again.');
+                }
+            })
+            .catch(err => {
+                console.error('Logout error:', err);
+                alert('An error occurred while logging out.');
             });
         }
+
 
         // Trigger logout immediately
         logOut();

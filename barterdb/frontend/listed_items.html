@@ -97,6 +97,7 @@
                     <li class="nav-item"><a class="nav-link" href="contact.html">Contact Us</a></li>
                     <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
                     <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
+                    <li class="nav-item"><a class="nav-link" href="mydashboard.html">Dashboard</a></li>
                 </ul>
             </div>
         </div>
@@ -130,6 +131,35 @@
     </footer>
 
     <script>
+        function logOut() {
+            fetch('http://localhost:5001/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.message === "Logged out successfully") {
+                    console.log('Logout success:', data.message);
+                    
+                    // Clear the auth token and user ID from localStorage
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userId');
+                    
+                    // Redirect to the sign-in page after successful logout
+                    window.location.href = 'signin.html';
+                } else {
+                    console.error('Logout failed:', data.message);
+                    alert('Failed to log out. Please try again.');
+                }
+            })
+            .catch(err => {
+                console.error('Logout error:', err);
+                alert('An error occurred while logging out.');
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const loadingSpinner = document.getElementById('loadingSpinner');
             const itemList = document.getElementById('itemList');

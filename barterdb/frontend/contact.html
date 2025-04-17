@@ -98,6 +98,7 @@
                     <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
                     <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
                     <li class="nav-item"><a class="nav-link" href="signup.html">Sign Up</a></li>
+                    <li class="nav-item"><a class="nav-link" href="mydashboard.html">Dashboard</a></li>
                 </ul>
             </div>
         </div>
@@ -156,6 +157,37 @@
     <footer class="text-center py-3 bg-dark text-white">
         <p>&copy; 2025 BarterDB. All Rights Reserved.</p>
     </footer>
+
+    <script>
+        function logOut() {
+        fetch('http://localhost:5001/api/auth/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.message === "Logged out successfully") {
+                console.log('Logout success:', data.message);
+                
+                // Clear the auth token and user ID from localStorage
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userId');
+                
+                // Redirect to the sign-in page after successful logout
+                window.location.href = 'signin.html';
+            } else {
+                console.error('Logout failed:', data.message);
+                alert('Failed to log out. Please try again.');
+            }
+        })
+        .catch(err => {
+            console.error('Logout error:', err);
+            alert('An error occurred while logging out.');
+        });
+    }
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
