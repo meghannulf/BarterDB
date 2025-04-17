@@ -168,7 +168,7 @@
 
       // Fetch items and users when the page is loaded
       fetchItems(authToken);
-      fetchUsers(authToken);
+      fetchUsers();
 
       // Fetch items
       function fetchItems(authToken) {
@@ -222,48 +222,53 @@
       }
 
       // Fetch users
-      function fetchUsers(authToken) {
+      function fetchUsers() {
+        // Show loading spinner
         document.getElementById('loadingSpinnerUsers').style.display = 'block';
         document.getElementById('loadingSpinnerItems').style.display = 'none';
 
+        // Fetch users without the need for authorization
         fetch('http://localhost:5001/api/auth/users', {
-          method: 'GET',
-          headers: { 'Authorization': `Bearer ${authToken}` },
+            method: 'GET',
+            // No need for Authorization header now
         })
         .then(response => response.json())
         .then(data => {
-          document.getElementById('loadingSpinnerUsers').style.display = 'none';
-          const userList = document.getElementById('userList');
-          userList.innerHTML = '';
+            document.getElementById('loadingSpinnerUsers').style.display = 'none';
+            const userList = document.getElementById('userList');
+            userList.innerHTML = ''; // Clear previous user cards
 
-          if (data.length === 0) {
+            // Show message if no users are available
+            if (data.length === 0) {
             document.getElementById('noUsersMessage').style.display = 'block';
-          }
+            } else {
+            // Create and append user cards
+            data.forEach(user => {
+                const userCard = document.createElement('div');
+                userCard.classList.add('col-md-4');
+                userCard.classList.add('user-card');
 
-          data.forEach(user => {
-            const userCard = document.createElement('div');
-            userCard.classList.add('col-md-4');
-            userCard.classList.add('user-card');
-
-            userCard.innerHTML = `
-              <div class="card">
-                <div class="card-body">
-                  <h5 class="card-title">${user.name}</h5>
-                  <p class="card-text">Email: ${user.email}</p>
-                  <p class="card-text"><strong>Status:</strong> ${user.is_admin ? 'Admin' : 'User'}</p>
-                  <button class="btn btn-danger" onclick="deleteUser(${user.id})">Delete User</button>
+                userCard.innerHTML = `
+                <div class="card">
+                    <div class="card-body">
+                    <h5 class="card-title">${user.name}</h5>
+                    <p class="card-text">Email: ${user.email}</p>
+                    <p class="card-text"><strong>Status:</strong> ${user.is_admin ? 'Admin' : 'User'}</p>
+                    <button class="btn btn-danger" onclick="deleteUser(${user.id})">Delete User</button>
+                    </div>
                 </div>
-              </div>
-            `;
-            userList.appendChild(userCard);
-          });
+                `;
+                userList.appendChild(userCard);
+            });
+            }
         })
         .catch(error => {
-          console.error('Error fetching users:', error);
-          const userList = document.getElementById('userList');
-          userList.innerHTML = '<p class="text-danger">Failed to load users. Please try again later.</p>';
+            console.error('Error fetching users:', error);
+            const userList = document.getElementById('userList');
+            userList.innerHTML = '<p class="text-danger">Failed to load users. Please try again later.</p>';
         });
-      }
+        }
+
 
       // Function to delete item
       window.deleteItem = function(itemId) {
@@ -291,7 +296,7 @@
         .then(response => response.json())
         .then(data => {
           alert(data.message);
-          fetchUsers(authToken); // Reload the users after deletion
+          fetchUsers(); // Reload the users after deletion
         })
         .catch(error => {
           console.error('Error deleting user:', error);

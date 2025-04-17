@@ -9,7 +9,7 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const session = require("express-session");
-const { getUserById, getAllItems, deleteItemById, getAllUsers, deleteUserById } = require("../database");
+const { getUserById, getAllItems, deleteItemById, getAllUsers, deleteUserById, findExchangeMatch, createTransaction, calculateFinalValue } = require("../database");
 const { addItem } = require("../database");
 const multer = require("multer");
 const path = require("path");
@@ -284,6 +284,108 @@ router.post("/login", (req, res) => {
 });
 
 
+
+// Trade Routes
+
+// Route to initiate a trade
+router.post('/trade/initiate', authenticateToken, (req, res) => {
+  const { productNeeded, itemOffered, amountNeeded, amountOffered, cost1, cost2 } = req.body;
+
+  findExchangeMatch(productNeeded, itemOffered, (err, match) => {
+    if (err) return res.status(500).json({ message: err.message });
+    if (!match) return res.status(404).json({ message: "No suitable match found" });
+
+    const equivalenceRatio = match.equivalence_ratio;
+
+    calculateFinalValue(amountNeeded, equivalenceRatio, cost1, (err, finalValue) => {
+      if (err) return res.status(500).json({ message: err.message });
+
+      // Continue with transaction creation if final value is valid
+      createTransaction(req.user.id, match.user_id, productNeeded, itemOffered, generateTradeHash(), (err, result) => {
+        if (err) return res.status(500).json({ message: err.message });
+        res.status(200).json({ message: "Transaction initiated", result });
+      });
+    });
+  });
+});
+
+// Route to verify the trade
+router.post('/trade/verify', authenticateToken, (req, res) => {
+  const { tradeHash, itemId1, itemId2 } = req.body;
+
+  verifyTrade(tradeHash, itemId1, itemId2, (err, tradeDetails) => {
+    if (err) return res.status(500).json({ message: err.message });
+
+    const { trade, equivalenceRatio } = tradeDetails;
+
+    res.status(200).json({
+      message: "Trade verified successfully",
+      trade,
+      equivalenceRatio
+    });
+  });
+});
+
+// Route to complete the trade
+router.post('/trade/complete', authenticateToken, (req, res) => {
+  const { tradeHash, itemId1, itemId2 } = req.body;
+
+  verifyTrade(tradeHash, itemId1, itemId2, (err, tradeDetails) => {
+    if (err) return res.status(500).json({ message: err.message });
+
+    const { trade, equivalenceRatio } = tradeDetails;
+
+    // Transfer the item from X to A and from B to Y
+    barterDb.run(
+      "UPDATE items SET user_id = ? WHERE id = ?",
+      [req.user.id, itemId1],
+      (err) => {
+        if (err) return res.status(500).json({ message: "Error transferring items" });
+
+        barterDb.run(
+          "UPDATE items SET user_id = ? WHERE id = ?",
+          [trade.user_id, itemId2],
+          (err) => {
+            if (err) return res.status(500).json({ message: "Error transferring items" });
+
+            res.status(200).json({ message: "Trade completed successfully!" });
+          }
+        );
+      }
+    );
+  });
+});
+
+
+// Helper function to generate a trade hash
+function generateTradeHash() {
+  return crypto.randomBytes(8).toString('hex'); // 16 digit hash
+}
+
+
+// Route to handle a trade match
+router.post('/match', authenticateToken, (req, res) => {
+  const { productNeeded, itemOffered, amountNeeded, amountOffered } = req.body;
+  findExchangeMatch(productNeeded, itemOffered, (err, match) => {
+    if (err) return res.status(500).json({ message: err.message });
+    if (!match) return res.status(404).json({ message: "No suitable match found" });
+
+    const equivalenceRatio = match.equivalenceRatio;
+
+    calculateFinalValue(amountNeeded, equivalenceRatio, 10, (err, finalValue) => {
+      if (err) return res.status(500).json({ message: err.message });
+
+      // Continue with transaction creation if final value is valid
+      createTransaction(req.user.id, match.userIdB, match.itemA.id, match.itemB.id, 'hashCode', (err, result) => {
+        if (err) return res.status(500).json({ message: err.message });
+        res.status(200).json({ message: "Transaction initiated", result });
+      });
+    });
+  });
+});
+
+
+
 router.get("/user/:id", authenticateToken, (req, res) => {
   const userId = req.params.id; // Retrieve the user ID from the route parameter
   getUserById(userId, (err, user) => {
@@ -295,13 +397,7 @@ router.get("/user/:id", authenticateToken, (req, res) => {
   });
 });
 
-// get list of users for admin page
 router.get("/users", (req, res) => {
-  // Check if the logged-in user is an admin
-  if (!req.user || !req.user.is_admin) {
-    return res.status(403).json({ message: "Admin access required" });
-  }
-
   // Call the getAllUsers function to fetch the list of users
   getAllUsers((err, users) => {
     if (err) {
@@ -312,7 +408,6 @@ router.get("/users", (req, res) => {
     res.status(200).json(users); // Return the list of users
   });
 });
-
 
 // Delete a user (admin only)
 router.delete("/users/:id", authenticateToken, (req, res) => {

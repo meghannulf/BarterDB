@@ -18,19 +18,22 @@ const barterDb = new sqlite3.Database("./databases/barterdb.db", (err) => {
     }
   });
 
-  // Create the users table if it doesn't exist
+  // Create the users table if it doesn't exist (with the is_admin column)
   barterDb.run(
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL
+      password TEXT NOT NULL,
+      is_admin BOOLEAN DEFAULT FALSE
     )`,
     (err) => {
       if (err) {
         console.error("Error creating users table:", err);
       } else {
         console.log("Users table created or already exists.");
+        // After creating the table, run the function to check and create the admin if necessary
+        createDefaultAdminIfNotExists();
       }
     }
   );
@@ -113,6 +116,53 @@ const barterDb = new sqlite3.Database("./databases/barterdb.db", (err) => {
   );
 });
 
+//function to create admin
+// Function to check if the default admin exists, and create them if not
+function createDefaultAdminIfNotExists() {
+  const defaultAdminEmail = "barter_admin@gmail.com";
+  const defaultAdminPassword = "admin123";
+  const defaultAdminName = "admin";
+
+  // Check if the admin user already exists
+  barterDb.get(
+    "SELECT id FROM users WHERE email = ?",
+    [defaultAdminEmail],
+    (err, row) => {
+      if (err) {
+        console.error("Error checking if admin exists:", err);
+        return;
+      }
+
+      if (row) {
+        console.log("Admin already exists");
+        return; // If the admin exists, no need to create again
+      }
+
+      // If the admin doesn't exist, create the admin user
+      bcrypt.hash(defaultAdminPassword, 10, (err, hashedPassword) => {
+        if (err) {
+          console.error("Error hashing admin password:", err);
+          return;
+        }
+
+        // Add the default admin user
+        barterDb.run(
+          `INSERT INTO users (name, email, password, is_admin) VALUES (?, ?, ?, ?)`,
+          [defaultAdminName, defaultAdminEmail, hashedPassword, true],
+          function (err) {
+            if (err) {
+              console.error("Error adding admin user:", err);
+            } else {
+              console.log("Default admin user created");
+            }
+          }
+        );
+      });
+    }
+  );
+}
+
+
 // function to log user activity
 function logUserActivity(userId, itemId, action, callback) {
   barterDb.run(
@@ -182,6 +232,122 @@ function addItem(
       } else {
         callback(null, this.lastID);  // Return last inserted ID on success
       }
+    }
+  );
+}
+
+// Function to find the exchange match
+function findExchangeMatch(productNeeded, itemOffered, callback) {
+  barterDb.all(
+    `SELECT * FROM items
+     WHERE name = ? AND item_type = ? AND available_quantity > 0`,
+    [productNeeded, "Product"], // You can replace "Product" with item type
+    (err, products) => {
+      if (err) return callback(err, null);
+      if (products.length === 0) return callback(null, null); // No matches
+
+      barterDb.all(
+        `SELECT * FROM items
+         WHERE name = ? AND item_type = ? AND available_quantity > 0`,
+        [itemOffered, "Product"], // Replace "Product" with item type
+        (err2, itemsOffered) => {
+          if (err2) return callback(err2, null);
+          return callback(null, { products, itemsOffered }); // Return available products and offers
+        }
+      );
+    }
+  );
+}
+
+// Function to get equivalence ration
+function getEquivalenceRatio(item1, item2, callback) {
+  barterDb.get(
+    `SELECT equivalence_ratio
+     FROM equivalence_table
+     WHERE item1_id = ? AND item2_id = ?`,
+    [item1, item2],
+    (err, row) => {
+      if (err) return callback(err, null);
+      if (!row) return callback(null, null); // No equivalence ratio found
+      return callback(null, row.equivalence_ratio); // Return equivalence ratio
+    }
+  );
+}
+
+// Value function
+function calculateFinalValue(itemPrice, equivalenceRatio, costPercentage, callback) {
+  const finalValue = itemPrice * equivalenceRatio * (1 - costPercentage / 100);
+  return callback(null, finalValue);
+}
+
+// Transaction functions 
+function createTransaction(userIdA, userIdB, itemAId, itemBId, hashCode, callback) {
+  barterDb.run(
+    `INSERT INTO transactions (user_id, item_id, action, created_at) VALUES (?, ?, ?, ?)`,
+    [userIdA, itemAId, 'added item', new Date()],
+    function (err) {
+      if (err) return callback(err, null);
+
+      // Create the transaction record for user B as well
+      barterDb.run(
+        `INSERT INTO transactions (user_id, item_id, action, created_at) VALUES (?, ?, ?, ?)`,
+        [userIdB, itemBId, 'added item', new Date()],
+        function (err2) {
+          if (err2) return callback(err2, null);
+
+          return callback(null, { transactionId: this.lastID, hashCode });
+        }
+      );
+    }
+  );
+}
+
+// verify the transaction 
+function verifyTransaction(hashCodePartA, hashCodePartB, callback) {
+  const fullHashCode = hashCodePartA + hashCodePartB;
+  if (isValidHash(fullHashCode)) {
+    // Verify that each participant has provided their item
+    // (You can extend this by checking if items were posted, and the transaction was correctly initiated)
+    return callback(null, true); // Verification successful
+  } else {
+    return callback(new Error("Invalid hash code"), null); // Hash mismatch
+  }
+}
+
+// Example hash validation function (use a secure hashing method in practice)
+function isValidHash(hashCode) {
+  return hashCode.length === 16; // Just an example of length verification
+}
+
+// Complete the exchange 
+function completeExchange(transactionId, userIdA, userIdB, itemA, itemB, callback) {
+  // Logic to move items between users
+  // This can involve updating the `items` table to reflect that the item was exchanged
+  // and updating the transaction status.
+
+  barterDb.run(
+    `UPDATE items SET user_id = ? WHERE id = ?`,
+    [userIdA, itemB.id], // Move item B to user A
+    function (err) {
+      if (err) return callback(err, null);
+
+      barterDb.run(
+        `UPDATE items SET user_id = ? WHERE id = ?`,
+        [userIdB, itemA.id], // Move item A to user B
+        function (err2) {
+          if (err2) return callback(err2, null);
+
+          // Update the transaction status
+          barterDb.run(
+            `UPDATE transactions SET action = ? WHERE id = ?`,
+            ['completed exchange', transactionId],
+            function (err3) {
+              if (err3) return callback(err3, null);
+              return callback(null, "Exchange completed successfully!");
+            }
+          );
+        }
+      );
     }
   );
 }
@@ -259,6 +425,22 @@ function emailExists(email, callback) {
   });
 }
 
+//function to get all users from the database
+function getAllUsers(callback) {
+  barterDb.all(
+    "SELECT * FROM users", 
+    [], 
+    (err, rows) => {
+      if (err) {
+        callback(err, null);
+      } else {
+        callback(null, rows); // Return users data
+      }
+    }
+  );
+}
+
+
 // Function to add new user to the database
 function addUser(name, email, password, callback) {
   barterDb.get("SELECT id FROM users WHERE email = ?", [email], (err, row) => {
@@ -332,6 +514,18 @@ function getUserById(userId, callback) {
   );
 }
 
+// delete users from database (admin)
+function deleteUserById(userId, callback) {
+  barterDb.run("DELETE FROM users WHERE id = ?", [userId], function (err) {
+    if (err) {
+      console.error("Error deleting user:", err);
+      callback(err, null);
+    } else {
+      callback(null, this.changes); // Return number of rows affected (0 if no user was deleted)
+    }
+  });
+}
+
 // Function to update password for a user
 function updatePassword(email, newPassword, callback) {
   barterDb.run(
@@ -354,10 +548,20 @@ module.exports = {
   updatePassword,
   loginUser,
   getUserById,
+  deleteUserById,
+  getAllUsers,
   addItem,
   getAllItems,
   getItemsByUserId,
   getRecentActivity,
   logUserActivity,
   deleteItemById,
+  createDefaultAdminIfNotExists,
+  createTransaction,
+  verifyTransaction,
+  completeExchange,
+  calculateFinalValue,
+  getEquivalenceRatio,
+  findExchangeMatch,
+
 };
