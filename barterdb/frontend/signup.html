@@ -1,134 +1,148 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - BarterDB</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-        }
-        .signup-container {
-            max-width: 400px;
-            margin: 50px auto;
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign Up - BarterDB</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet"/>
+  <style>
+    body {
+      background-color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .navbar {
+      padding: 1rem 0;
+    }
+
+    .signup-container {
+      max-width: 400px;
+      margin: 80px auto;
+      padding: 30px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    .signup-container .bi-person-plus {
+      font-size: 3rem;
+      color: #0d6efd;
+      margin-bottom: 10px;
+    }
+
+    .signup-container h2 {
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .alert {
+      max-width: 400px;
+      margin: 20px auto 0;
+    }
+  </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
     <div class="container">
-        <a class="navbar-brand" href="index.html">BarterDB</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
-                <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
-                <li class="nav-item"><a class="nav-link" href="services.html">Services</a></li>
-                <li class="nav-item"><a class="nav-link" href="contact.html">Contact Us</a></li>
-                <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
-                <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
-            </ul>
-        </div>
+      <a class="navbar-brand fw-bold text-primary" href="index.html">BarterDB</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
+          <li class="nav-item"><a class="nav-link" href="listed_items.html">Items</a></li>
+          <li class="nav-item"><a class="nav-link" href="services.html">Services</a></li>
+          <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
+          <li class="nav-item"><a class="nav-link" href="signin.html">Sign In</a></li>
+          <li class="nav-item"><a class="nav-link active" href="signup.html">Sign Up</a></li>
+        </ul>
+      </div>
     </div>
-</nav>
+  </nav>
 
-<div class="container">
-    <!-- Error message container placed directly above the signup form -->
-    <div id="error-message" class="alert alert-danger" style="display: none;"></div>
+  <!-- Error Message -->
+  <div id="error-message" class="alert alert-danger text-center" style="display: none;"></div>
 
-    <div class="signup-container">
-        <h2 class="text-center">Sign Up</h2>
-        <form id="signup-form">
-            <div class="mb-3">
-                <label for="name" class="form-label">Full Name</label>
-                <input type="text" class="form-control" id="name" required>
-            </div>
-            <div class="mb-3">
-                <label for="email" class="form-label">Email Address</label>
-                <input type="email" class="form-control" id="email" required>
-            </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" required>
-            </div>
+  <!-- Signup Form -->
+  <div class="signup-container">
+    <div><i class="bi bi-person-plus"></i></div>
+    <h2>Sign Up</h2>
+    <form id="signup-form">
+      <div class="mb-3 text-start">
+        <label for="name" class="form-label">Full Name</label>
+        <input type="text" class="form-control" id="name" required>
+      </div>
+      <div class="mb-3 text-start">
+        <label for="email" class="form-label">Email Address</label>
+        <input type="email" class="form-control" id="email" required>
+      </div>
+      <div class="mb-3 text-start">
+        <label for="password" class="form-label">Password</label>
+        <input type="password" class="form-control" id="password" required>
+      </div>
+      <button type="submit" class="btn btn-primary w-100" id="signup-btn">Sign Up</button>
+    </form>
+    <p class="text-center mt-3">Already have an account? <a href="signin.html">Sign In</a></p>
+  </div>
 
-            <button type="submit" class="btn btn-primary w-100" id="signup-btn">Sign Up</button>
-        </form>
-
-        <p class="text-center mt-3">Already have an account? <a href="signin.html">Sign In</a></p>
-    </div>
-</div>
-
-<script>
+  <!-- JS Logic -->
+  <script>
     document.getElementById("signup-form").addEventListener("submit", function(event) {
-        event.preventDefault(); // Prevent the default form submission
+      event.preventDefault();
 
-        // Clear any previous error messages
-        document.getElementById('error-message').style.display = 'none';
+      document.getElementById('error-message').style.display = 'none';
 
-        // Get form values
-        const name = document.getElementById('name').value;
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
 
-        if (!name || !email || !password) {
-            displayErrorMessage("All fields are required!");
-            return;
+      if (!name || !email || !password) {
+        displayErrorMessage("All fields are required!");
+        return;
+      }
+
+      const userData = { name, email, password };
+
+      fetch('http://localhost:5001/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            throw new Error(errorData.message || 'Registration failed.');
+          });
         }
-
-        // Create user data object
-        const userData = {
-            name,
-            email,
-            password
-        };
-
-        // Make a POST request to your backend
-        fetch('http://localhost:5001/api/auth/register', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(userData),
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(errorData => {
-                    throw new Error(errorData.message || 'Registration failed.');
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.message === 'User registered successfully') {
-                alert('Registration successful! Redirecting to Sign In page.');
-                window.location.href = 'signin.html'; // Ensure this is correct path
-            } else {
-                displayErrorMessage(data.message || 'Registration failed. Please try again.');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            displayErrorMessage(error.message || 'An error occurred during registration. Please try again later.');
-        });
+        return response.json();
+      })
+      .then(data => {
+        if (data.message === 'User registered successfully') {
+          alert('Registration successful! Redirecting to Sign In page.');
+          window.location.href = 'signin.html';
+        } else {
+          displayErrorMessage(data.message || 'Registration failed. Please try again.');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        displayErrorMessage(error.message || 'An error occurred during registration. Please try again later.');
+      });
     });
 
-    // Function to display error messages on the page
     function displayErrorMessage(message) {
-        const errorMessageContainer = document.getElementById('error-message');
-        errorMessageContainer.innerText = message;  // Set the error message text
-        errorMessageContainer.style.display = 'block';  // Show the error message container
+      const errorMessageContainer = document.getElementById('error-message');
+      errorMessageContainer.innerText = message;
+      errorMessageContainer.style.display = 'block';
     }
-</script>
+  </script>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

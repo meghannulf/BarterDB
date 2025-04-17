@@ -152,6 +152,7 @@ function getRecentActivity(userId, callback) {
 }
 
 // Function to add new item
+// Function to add new item
 function addItem(
   userId,
   name,
@@ -169,19 +170,22 @@ function addItem(
     type,
     photoPath,
   });
+
+  // Insert the item into the database
   barterDb.run(
     "INSERT INTO items (user_id, name, description, available_quantity, item_type, photo) VALUES (?, ?, ?, ?, ?, ?)",
     [userId, name, description, quantity, type, photoPath],
     function (err) {
       if (err) {
         console.error("Error adding item:", err);
-        callback(err, null);
+        callback(err, null);  // If an error occurs, return it through the callback
       } else {
-        callback(null, this.lastID); // Return last inserted ID
+        callback(null, this.lastID);  // Return last inserted ID on success
       }
     }
   );
 }
+
 
 // Function to get all items without including empty columns
 function getAllItems(callback) {

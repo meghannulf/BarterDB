@@ -129,9 +129,7 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
 
   // Validate required fields
   if (!userId || !name || !description || !available_quantity || !item_type) {
-    return res
-      .status(400)
-      .json({ message: "All fields except the photo are required" });
+    return res.status(400).json({ message: "All fields except the photo are required" });
   }
 
   // Check for uploaded photo and construct public URL
@@ -139,7 +137,7 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
     ? `http://localhost:5001/api/auth/uploads/${req.file.filename}`
     : null;
 
-  // Call your database function to save the item details
+  // Call the addItem function to save the item details
   addItem(
     userId,
     name,
@@ -161,6 +159,7 @@ router.post("/items", authenticateToken, upload.single("photo"), (req, res) => {
     }
   );
 });
+
 
 // route to delete items
 router.delete("/items/:id", (req, res) => {
@@ -194,7 +193,7 @@ router.get("/items", (req, res) => {
     // Add correct URL prefix to photo paths
     const updatedRows = rows.map((item) => {
       if (item.photo) {
-        item.photo = `http://localhost:5001/uploads/${path.basename(
+        item.photo = `http://localhost:5001/api/auth/uploads/${path.basename(
           item.photo
         )}`;
       }
@@ -220,7 +219,7 @@ router.get("/items/user/:id", authenticateToken, (req, res) => {
     // Add correct URL prefix to photo paths
     const updatedItems = items.map((item) => {
       if (item.photo) {
-        item.photo = `http://localhost:5001/uploads/${path.basename(
+        item.photo = `http://localhost:5001/api/auth/uploads/${path.basename(
           item.photo
         )}`;
       }
