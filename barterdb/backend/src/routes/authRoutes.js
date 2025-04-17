@@ -9,7 +9,7 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const session = require("express-session");
-const { getUserById, getAllItems, deleteItemById } = require("../database");
+const { getUserById, getAllItems, deleteItemById, getAllUsers, deleteUserById } = require("../database");
 const { addItem } = require("../database");
 const multer = require("multer");
 const path = require("path");
@@ -237,6 +237,7 @@ router.get("/items/user/:id", authenticateToken, (req, res) => {
   });
 });
 
+// Route to log in a user
 router.post("/login", (req, res) => {
   const { email, password } = req.body;
 
@@ -262,24 +263,26 @@ router.post("/login", (req, res) => {
       });
     }
 
-    // Create JWT token
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: "24h",
-    });
+    // Create JWT token, including `is_admin` status
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, is_admin: user.is_admin }, // Add `is_admin` to the token
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
 
     // Store session data
     req.session.token = token;
     req.session.userId = user.id;
 
-    console.log("Session Created:", req.session);
-
     return res.status(200).json({
       message: "User logged in successfully",
       userId: user.id,
       token: token,
+      is_admin: user.is_admin, // Include admin status in the response
     });
   });
 });
+
 
 router.get("/user/:id", authenticateToken, (req, res) => {
   const userId = req.params.id; // Retrieve the user ID from the route parameter
@@ -291,6 +294,55 @@ router.get("/user/:id", authenticateToken, (req, res) => {
     res.status(200).json(user); // Send user details as JSON response
   });
 });
+
+// get list of users for admin page
+router.get("/users", (req, res) => {
+  // Check if the logged-in user is an admin
+  if (!req.user || !req.user.is_admin) {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+
+  // Call the getAllUsers function to fetch the list of users
+  getAllUsers((err, users) => {
+    if (err) {
+      console.error("Error fetching users:", err);
+      return res.status(500).json({ message: "Failed to fetch users" });
+    }
+
+    res.status(200).json(users); // Return the list of users
+  });
+});
+
+
+// Delete a user (admin only)
+router.delete("/users/:id", authenticateToken, (req, res) => {
+  const userId = req.params.id;
+
+  // Check if the logged-in user is an admin
+  if (!req.user.is_admin) {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+
+  // Check if the user is trying to delete themselves
+  if (req.user.id === userId) {
+    return res.status(400).json({ message: "You cannot delete your own account" });
+  }
+
+  // Call the deleteUserById function to delete the user from the database
+  deleteUserById(userId, (err, changes) => {
+    if (err) {
+      return res.status(500).json({ message: "Failed to delete user", error: err.message });
+    }
+
+    if (changes === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ message: `User with ID ${userId} deleted successfully` });
+  });
+});
+
+
 
 router.post("/logout", (req, res) => {
   req.session.destroy((err) => {
