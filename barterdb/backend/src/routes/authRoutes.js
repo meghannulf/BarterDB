@@ -343,7 +343,7 @@ router.post('/trade/initiate', authenticateToken, (req, res) => {
 // Route to get active (initiated) trades for a user
 router.get('/my-transactions/:userId', authenticateToken, (req, res) => {
   const userId = req.params.userId;
-  console.log('Fetching active transactions for user:', userId);  // Log to verify the route is being hit
+  console.log('Fetching active transactions for user:', userId);
 
   // Fetch active trades (action = 'initiated')
   getAllTransactions(userId, (err, transactions) => {
@@ -352,12 +352,13 @@ router.get('/my-transactions/:userId', authenticateToken, (req, res) => {
       return res.status(500).json({ message: 'Error fetching transactions', error: err.message });
     }
 
-    console.log('Fetched active transactions:', transactions);  // Log the result from getAllTransactions
+    console.log('Fetched active transactions:', transactions);
 
     // Return an empty array if no active transactions are found, rather than returning a 404
     res.status(200).json(transactions || []);  // Ensure an empty array is returned if no trades are found
   });
 });
+
 
 // Route to get past trade history for a user
 router.get('/past-trades/:userId', authenticateToken, (req, res) => {

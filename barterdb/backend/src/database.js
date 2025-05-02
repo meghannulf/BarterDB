@@ -389,29 +389,23 @@ function createTransaction(userIdA, itemAId, itemBId, action, timestamp, callbac
 
 // Function to fetch active (initiated) transactions for a user
 function getAllTransactions(userId, callback) {
-  // Query to fetch active transactions for the given user (where action = 'initiated')
   const allTransactionsQuery = `
     SELECT t.id, t.item_id, t.action, t.created_at, i.name AS item_name
     FROM transactions t
     JOIN items i ON t.item_id = i.id
-    WHERE t.user_id = ? AND t.action = 'initiated'  -- Only active trades
+    WHERE t.user_id = ? AND t.action = 'initiated'
   `;
 
-  // Fetch all active transactions
   barterDb.all(allTransactionsQuery, [userId], (err, transactions) => {
     if (err) {
-      console.error('Error fetching transactions:', err);  // Log error if any
-      return callback(err, null); // Return the error if fetching transactions fails
+      console.error('Error fetching transactions:', err);
+      return callback(err, null);  // Return error if fetching fails
     }
 
     console.log('Fetched transactions for user:', userId);
-    console.log(transactions);  // Log the transactions to see the structure and contents
+    console.log(transactions);  // Log the transactions to see the structure
 
-    if (!transactions || transactions.length === 0) {
-      console.log('No active transactions found for this user.');
-    }
-
-    // Return only active transactions
+    // Return the active transactions
     callback(null, transactions);
   });
 }
