@@ -1,32 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trade - BarterDB</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <style>
-    /* Same styles as before */
-  </style>
 </head>
-
 <body>
-  <!-- Navbar and Hero Section -->
+  <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
     <div class="container">
       <a class="navbar-brand" href="#">BarterDB</a>
-      <!-- Add other navbar content as needed -->
     </div>
   </nav>
 
-  <section class="hero-section">
+  <!-- Hero -->
+  <section class="hero-section text-center py-5 bg-light">
     <div class="container">
       <h1>Start Trading</h1>
-      <p>Select the items you wish to trade and initiate the process.</p>
+      <p>Select what you want and what you're offering to check the match.</p>
     </div>
   </section>
 
+  <!-- Trade Form -->
   <div class="container mt-5">
     <form id="tradeForm">
       <div class="mb-3">
@@ -44,136 +40,177 @@
       </div>
 
       <div class="mb-3">
-        <label for="quantityNeeded" class="form-label">Quantity Needed</label>
-        <input type="number" class="form-control" id="quantityNeeded" required />
-      </div>
-
-      <div class="mb-3">
         <label for="quantityOffered" class="form-label">Quantity Offered</label>
-        <input type="number" class="form-control" id="quantityOffered" required />
+        <input type="number" class="form-control" id="quantityOffered" min="1" required />
       </div>
 
-      <button type="submit" class="btn btn-primary">Initiate Trade</button>
+      <button type="submit" class="btn btn-primary">Check Trade</button>
     </form>
+
+    <div id="requiredOfferInfo" class="alert alert-secondary mt-4" style="display: none;"></div>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // Fetch authToken and userId from localStorage
       const authToken = localStorage.getItem('authToken');
-      const userId = localStorage.getItem('userId'); // Get the user ID from localStorage
+      const userId = localStorage.getItem('userId');
 
-      // Check if authToken and userId exist, otherwise redirect to sign-in page
       if (!authToken || !userId) {
-        window.location.href = 'signin.html'; // Redirect if no authToken or userId
+        alert("You must be logged in to trade.");
         return;
       }
 
-      console.log('authToken:', authToken);  // Log to verify token retrieval
-      console.log('userId:', userId);        // Log to verify userId retrieval
+      const productNeededSelect = document.getElementById('productNeeded');
+      const itemOfferedSelect = document.getElementById('itemOffered');
+      const quantityOfferedInput = document.getElementById('quantityOffered');
+      const infoBox = document.getElementById('requiredOfferInfo');
 
-      // Fetch available items (items the user can select as product needed)
-      fetch(`http://localhost:5001/api/auth/items/available/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`, // Correct token usage in the header
-          'Content-Type': 'application/json'
-        }
-      })
+      // Load all items for "Product Needed"
+      fetch('http://localhost:5001/api/auth/items')
         .then(res => res.json())
-        .then(data => {
-          console.log('Fetched available items:', data);  // Log response data to verify available items
-
-          const productNeededSelect = document.getElementById('productNeeded');
-
-          if (data.items && data.items.length > 0) {
-            // Populate the "Product Needed" dropdown with available items for trade
-            data.items.forEach(item => {
-              const option = document.createElement('option');
-              option.value = item.id;
-              option.textContent = item.name;
-              productNeededSelect.appendChild(option);
-            });
-          } else {
-            productNeededSelect.innerHTML = '<option>No products available for trade</option>';
-          }
+        .then(items => {
+          if (!items || items.length === 0) return;
+          items.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.text = item.name;
+            productNeededSelect.appendChild(option);
+          });
         })
-        .catch(error => {
-          console.error('Error fetching available items:', error);
-          alert("Failed to load available products. Please check the console for details.");
+        .catch(err => {
+          console.error('Error loading all items:', err);
+          alert("Failed to load product options.");
         });
 
-      // Fetch user's own items (items they can offer for trade)
+      // Load user-owned items for "Item Offered"
       fetch(`http://localhost:5001/api/auth/items/user/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`, // Correct token usage in the header
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Authorization': `Bearer ${authToken}` }
       })
         .then(res => res.json())
         .then(data => {
-          console.log('Fetched user items:', data);  // Log response data to verify user items
-
-          const itemOfferedSelect = document.getElementById('itemOffered');
-
-          if (data.items && data.items.length > 0) {
-            // Populate the "Item Offered" dropdown with user's own items
-            data.items.forEach(item => {
-              const option = document.createElement('option');
-              option.value = item.id;
-              option.textContent = item.name;
-              itemOfferedSelect.appendChild(option);
-            });
-          } else {
-            itemOfferedSelect.innerHTML = '<option>No items available to offer</option>';
-          }
+          const items = data.items;
+          itemOfferedSelect.innerHTML = '<option value="">Select Item Offered</option>';
+          if (!items || items.length === 0) return;
+          items.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.text = item.name;
+            itemOfferedSelect.appendChild(option);
+          });
         })
-        .catch(error => {
-          console.error('Error fetching user items:', error);
-          alert("Failed to load your items. Please check the console for details.");
+        .catch(err => {
+          console.error('Error loading user items:', err);
+          alert("Failed to load your items.");
         });
 
-    // Handle trade form submission
-    // Handle trade form submission
-    document.getElementById('tradeForm').addEventListener('submit', (e) => {
-  e.preventDefault();
+      function calculateRequiredOffer() {
+        const productNeeded = productNeededSelect.value;
+        const itemOffered = itemOfferedSelect.value;
+        const amountNeeded = 1;
 
-  // Remove userId from the tradeData
-    const tradeData = {
-      productNeeded: document.getElementById('productNeeded').value,
-      itemOffered: document.getElementById('itemOffered').value,
-      quantityNeeded: document.getElementById('quantityNeeded').value,
-      quantityOffered: document.getElementById('quantityOffered').value,
-    };
+        if (!productNeeded || !itemOffered) {
+          infoBox.style.display = 'none';
+          return;
+        }
 
-    // Send the request without the userId in the body
-    fetch('http://localhost:5001/api/auth/trade/initiate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
-      },
-      body: JSON.stringify(tradeData),
-    })
-      .then(response => response.json())
-      .then(data => {
-        alert(data.message); // Show message received from server
-        if (data.transactionId) {
-          console.log("Transaction ID:", data.transactionId);
+        fetch('http://localhost:5001/api/auth/match', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({
+            productNeeded: Number(productNeeded),
+            itemOffered: Number(itemOffered),
+            amountNeeded: 1,
+            amountOffered: 0
+          }),
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.requiredOffer) {
+              quantityOfferedInput.value = data.requiredOffer.toFixed(2);
+              infoBox.style.display = 'block';
+              infoBox.textContent = `To get 1 unit of that item, you must offer at least ${data.requiredOffer.toFixed(2)} unit(s).`;
+            } else if (data.message) {
+              infoBox.style.display = 'block';
+              infoBox.textContent = `No match found: ${data.message}`;
+              quantityOfferedInput.value = '';
+            }
+          })
+          .catch(err => {
+            console.warn("Match preview failed:", err);
+            infoBox.style.display = 'none';
+          });
+      }
 
-          // Redirect to the my-dashboard.html page after successful trade initiation
-          window.location.href = 'my-dashboard.html'; // Redirect to my-dashboard.html
+      productNeededSelect.addEventListener('change', calculateRequiredOffer);
+      itemOfferedSelect.addEventListener('change', calculateRequiredOffer);
+
+      document.getElementById('tradeForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const tradeData = {
+          productNeeded: Number(productNeededSelect.value),
+          itemOffered: Number(itemOfferedSelect.value),
+          amountNeeded: 1,
+          amountOffered: parseFloat(quantityOfferedInput.value),
+        };
+
+        fetch('http://localhost:5001/api/auth/match', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify(tradeData),
+        })
+        .then(async (response) => {
+        const data = await response.json();
+
+        if (!response.ok) {
+          // ❌ Server returned 400/500 — show error from backend
+          alert(`❌ Trade failed: ${data.message}`);
+          return;
+        }
+
+        // ✅ Server returned 200
+        if (data.requiredOffer) {
+          // Proceed to actually initiate the trade
+          fetch('http://localhost:5001/api/auth/trade/initiate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+              productNeeded: tradeData.productNeeded,
+              itemOffered: tradeData.itemOffered,
+              amountNeeded: tradeData.amountNeeded,
+              amountOffered: tradeData.amountOffered
+            })
+          })
+          .then(res => res.json())
+          .then(initData => {
+            if (initData.tradeId) {
+              alert(`✅ Trade offer sent to item owner! Trade ID: ${initData.tradeId}`);
+              window.location.href = 'my-dashboard.html'; // Or wherever you want to redirect
+            } else {
+              alert(`❌ Failed to create trade: ${initData.message}`);
+            }
+          })
+          .catch(err => {
+            console.error("Trade submission error:", err);
+            alert("An error occurred while submitting the trade.");
+          });
         }
       })
-      .catch((error) => {
-        console.error('Error:', error);
-        alert("An error occurred while initiating the trade.");
+      .catch((err) => {
+        console.error('Error submitting trade:', err);
+        alert("An error occurred while submitting the trade.");
       });
-  });
-
+      });
     });
   </script>
 </body>
-
 </html>

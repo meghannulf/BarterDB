@@ -59,7 +59,32 @@ const barterDb = new sqlite3.Database("./databases/barterdb.db", (err) => {
     }
   }
   );
-  
+    barterDb.run(
+      `CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        requester_id INTEGER NOT NULL,
+        owner_id INTEGER NOT NULL,
+        offered_item_id INTEGER NOT NULL,
+        requested_item_id INTEGER NOT NULL,
+        quantity_offered INTEGER NOT NULL,
+        quantity_requested INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (requester_id) REFERENCES users(id),
+        FOREIGN KEY (owner_id) REFERENCES users(id),
+        FOREIGN KEY (offered_item_id) REFERENCES items(id),
+        FOREIGN KEY (requested_item_id) REFERENCES items(id)
+      )`,
+      (err) => {
+        if (err) {
+          console.error("Error creating transactions table:", err);
+        } else {
+          console.log("transactions table created or already exists.");
+        }
+      }
+    );
+    
+    
 
   // Create the items table if it doesn't exist
   barterDb.run(
@@ -102,26 +127,6 @@ const barterDb = new sqlite3.Database("./databases/barterdb.db", (err) => {
     }
   );
 
-  // Create the transactions table
-  barterDb.run(
-    `CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,       -- ID of the user performing the action
-        item_id INTEGER NOT NULL,       -- ID of the item involved (if applicable)
-        action TEXT NOT NULL,           -- e.g., 'added item', 'traded item', 'accepted offer', 'declined offer'
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (item_id) REFERENCES items(id)
-    )`,
-    (err) => {
-      if (err) {
-        console.error("Error creating transactions table:", err);
-      } else {
-        console.log("Transactions table created or already exists.");
-      }
-    }
-  );
-
   // Create the costs table for transaction fee management
   barterDb.run(
     `CREATE TABLE IF NOT EXISTS costs (
@@ -139,6 +144,137 @@ const barterDb = new sqlite3.Database("./databases/barterdb.db", (err) => {
     }
   );
 });
+
+//trade functions
+// Look up the owner of an item by item ID
+function getItemOwner(itemId, callback) {
+  barterDb.get(
+    `SELECT user_id FROM items WHERE id = ?`,
+    [itemId],
+    (err, row) => {
+      if (err) {
+        console.error("Error fetching item owner:", err);
+        return callback(err);
+      }
+
+      if (!row) {
+        console.warn("No owner found for item:", itemId);
+        return callback(null, null); // No owner found
+      }
+
+      callback(null, row.user_id);
+    }
+  );
+}
+
+// Create a trade transaction record
+function createTradeTransaction(
+  requesterId,
+  ownerId,
+  offeredItemId,
+  requestedItemId,
+  quantityOffered,
+  quantityRequested,
+  callback
+) {
+  barterDb.run(
+    `INSERT INTO transactions (
+      requester_id, owner_id,
+      offered_item_id, requested_item_id,
+      quantity_offered, quantity_requested,
+      status
+    ) VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+    [
+      requesterId,
+      ownerId,
+      offeredItemId,
+      requestedItemId,
+      quantityOffered,
+      quantityRequested
+    ],
+    function (err) {
+      if (err) {
+        console.error("Error creating trade transaction:", err);
+        return callback(err);
+      }
+
+      console.log("Trade transaction created, ID:", this.lastID);
+      callback(null, this.lastID);
+    }
+  );
+}
+
+//Show user trades
+function getPendingSentTradesByUser(requesterId, callback) {
+  const query = `
+    SELECT 
+      t.id,
+      t.status,
+      t.quantity_offered,
+      t.quantity_requested,
+      t.created_at,
+      i1.name AS offered_item_name,
+      i2.name AS requested_item_name
+    FROM transactions t
+    JOIN items i1 ON t.offered_item_id = i1.id
+    JOIN items i2 ON t.requested_item_id = i2.id
+    WHERE t.requester_id = ? AND t.status = 'pending'
+    ORDER BY t.created_at DESC
+  `;
+
+  barterDb.all(query, [requesterId], (err, rows) => {
+    if (err) {
+      console.error("Error fetching pending sent trades:", err);
+      return callback(err);
+    }
+    callback(null, rows);
+  });
+}
+
+
+// show user offered trades
+function getPendingIncomingTradesForUser(ownerId, callback) {
+  const query = `
+    SELECT 
+      t.id,
+      t.status,
+      t.quantity_offered,
+      t.quantity_requested,
+      t.created_at,
+      i1.name AS offered_item_name,
+      i2.name AS requested_item_name
+    FROM transactions t
+    JOIN items i1 ON t.offered_item_id = i1.id
+    JOIN items i2 ON t.requested_item_id = i2.id
+    WHERE t.owner_id = ? AND t.status = 'pending'
+    ORDER BY t.created_at DESC
+  `;
+
+  barterDb.all(query, [ownerId], (err, rows) => {
+    if (err) {
+      console.error("Error fetching incoming trades:", err);
+      return callback(err);
+    }
+
+    callback(null, rows);
+  });
+}
+
+//admin see all trades
+function getAllTrades(callback) {
+  const query = `
+    SELECT 
+      t.*, 
+      oi.name AS offered_item_name, 
+      ri.name AS requested_item_name 
+    FROM transactions t
+    JOIN items oi ON t.offered_item_id = oi.id
+    JOIN items ri ON t.requested_item_id = ri.id
+    ORDER BY t.created_at DESC
+  `;
+  barterDb.all(query, [], callback);
+}
+
 
 //function to create admin
 // Function to check if the default admin exists, and create them if not
@@ -183,6 +319,84 @@ function createDefaultAdminIfNotExists() {
         );
       });
     }
+  );
+}
+
+// accept
+// Function to accept a trade, update inventory, and transfer items to the new user
+// Function to accept a trade, update inventory, and transfer items to the new user
+function acceptTradeAndAdjustInventory(transactionId, callback) {
+  barterDb.get(
+    `SELECT * FROM transactions WHERE id = ?`,
+    [transactionId],
+    (err, trade) => {
+      if (err || !trade) {
+        console.error("Trade not found or fetch error:", err);
+        return callback(err || new Error("Trade not found"));
+      }
+
+      barterDb.serialize(() => {
+        barterDb.run("BEGIN TRANSACTION");
+
+        // Update trade status to 'accepted'
+        barterDb.run(
+          `UPDATE transactions SET status = 'accepted' WHERE id = ?`,
+          [transactionId]
+        );
+
+        // Deduct offered item quantity from requester
+        barterDb.run(
+          `UPDATE items SET available_quantity = available_quantity - ? WHERE id = ? AND user_id = ?`,
+          [trade.quantity_offered, trade.offered_item_id, trade.requester_id]
+        );
+
+        // Deduct requested item quantity from owner
+        barterDb.run(
+          `UPDATE items SET available_quantity = available_quantity - ? WHERE id = ? AND user_id = ?`,
+          [trade.quantity_requested, trade.requested_item_id, trade.owner_id]
+        );
+
+        // Transfer offered item to owner (new item entry)
+        barterDb.run(
+          `INSERT INTO items (user_id, name, description, available_quantity, item_type, photo) 
+           SELECT ?, name, description, ?, item_type, photo FROM items WHERE id = ?`,
+          [trade.owner_id, trade.quantity_offered, trade.offered_item_id]
+        );
+
+        // Transfer requested item to requester (new item entry)
+        barterDb.run(
+          `INSERT INTO items (user_id, name, description, available_quantity, item_type, photo) 
+           SELECT ?, name, description, ?, item_type, photo FROM items WHERE id = ?`,
+          [trade.requester_id, trade.quantity_requested, trade.requested_item_id]
+        );
+
+        // Commit transaction
+        barterDb.run("COMMIT", (commitErr) => {
+          if (commitErr) {
+            console.error("Inventory commit failed:", commitErr);
+            return callback(commitErr);
+          }
+          callback(null, { message: "Trade accepted, inventory adjusted, and items transferred" });
+        });
+      });
+    }
+  );
+}
+
+//show past trades
+function getPastTradesForUser(userId, callback) {
+  barterDb.all(
+    `
+    SELECT t.*, io.name AS offered_item_name, ir.name AS requested_item_name
+    FROM transactions t
+    JOIN items io ON t.offered_item_id = io.id
+    JOIN items ir ON t.requested_item_id = ir.id
+    WHERE (t.requester_id = ? OR t.owner_id = ?)
+      AND t.status IN ('accepted', 'declined')
+    ORDER BY t.created_at DESC
+    `,
+    [userId, userId],
+    callback
   );
 }
 
@@ -325,18 +539,24 @@ function createTransaction(userId, offeredId, productId, quantityNeeded, quantit
 
 
 // Function to get equivalence ration
-function getEquivalenceRatio(item1, item2, callback) {
-  barterDb.get(
-    `SELECT equivalence_ratio
-     FROM equivalence_table
-     WHERE item1_id = ? AND item2_id = ?`,
-    [item1, item2],
-    (err, row) => {
-      if (err) return callback(err, null);
-      if (!row) return callback(null, null); // No equivalence ratio found
-      return callback(null, row.equivalence_ratio); // Return equivalence ratio
+function getAllEquivalenceRatios(callback) {
+  const query = `
+    SELECT 
+      eq.id,
+      i1.name AS item1_name,
+      i2.name AS item2_name,
+      eq.equivalence_ratio
+    FROM equivalence_table eq
+    JOIN items i1 ON eq.item1_id = i1.id
+    JOIN items i2 ON eq.item2_id = i2.id
+  `;
+
+  barterDb.all(query, [], (err, rows) => {
+    if (err) {
+      return callback(err);
     }
-  );
+    callback(null, rows);
+  });
 }
 
 // Value function
@@ -345,47 +565,68 @@ function calculateFinalValue(itemPrice, equivalenceRatio, costPercentage, callba
   return callback(null, finalValue);
 }
 
-// Transaction functions 
-function createTransaction(userIdA, itemAId, itemBId, action, timestamp, callback) {
-  // First, fetch the userId associated with itemBId (userIdB)
-  barterDb.get(
-    `SELECT user_id FROM items WHERE id = ?`,
-    [itemBId],
-    (err, row) => {
-      if (err) {
-        return callback(err, null);
-      }
+// Exchange functions 
+function findExchangeMatch(productNeededId, itemOfferedId, callback) {
+  const query = `
+    SELECT equivalence_ratio FROM equivalence_table
+    WHERE item1_id = ? AND item2_id = ?
+  `;
 
-      if (!row) {
-        return callback(new Error("Item B not found"), null);
-      }
+  barterDb.get(query, [productNeededId, itemOfferedId], (err, row) => {
+    if (err) return callback(err);
+    if (!row) return callback(null, null); // No match in this direction
 
-      const userIdB = row.user_id; // Get userIdB from the query result
-
-      // Insert trade transaction for user A (initiating trade)
-      barterDb.run(
-        `INSERT INTO transactions (user_id, item_id, action, created_at) VALUES (?, ?, ?, ?)`,
-        [userIdA, itemAId, action, timestamp],
-        function (err) {
-          if (err) return callback(err, null);
-
-          // Log the transaction for the other user (user B, receiving the trade)
-          barterDb.run(
-            `INSERT INTO transactions (user_id, item_id, action, created_at) VALUES (?, ?, ?, ?)`,
-            [userIdB, itemBId, action, timestamp],
-            function (err2) {
-              if (err2) return callback(err2, null);
-
-              callback(null, {
-                transactionId: this.lastID, // Return the transaction ID of the first entry
-              });
-            }
-          );
-        }
-      );
-    }
-  );
+    const ratio = row.equivalence_ratio;
+    callback(null, {
+      itemA: { id: productNeededId },
+      itemB: { id: itemOfferedId },
+      equivalenceRatio: ratio
+    });
+  });
 }
+
+// Enough to trade
+function hasSufficientQuantity(userId, itemId, requiredAmount, callback) {
+  if (!userId) {
+    return callback(null, {
+      hasEnough: false,
+      available: 0,
+      message: "Missing user ID"
+    });
+  }
+
+  const query = `
+    SELECT available_quantity
+    FROM items
+    WHERE id = ? AND user_id = ?
+  `;
+
+  barterDb.get(query, [itemId, userId], (err, row) => {
+    if (err) return callback(err);
+
+    if (!row) {
+      return callback(null, {
+        hasEnough: false,
+        available: 0,
+        message: "Item not found or does not belong to user"
+      });
+    }
+
+    const hasEnough = row.available_quantity >= requiredAmount;
+
+    callback(null, {
+      hasEnough,
+      available: row.available_quantity,
+      message: hasEnough
+        ? "Sufficient quantity"
+        : `Only ${row.available_quantity} available, need ${requiredAmount}`
+    });
+  });
+}
+
+
+
+
 
 // Function to fetch active (initiated) transactions for a user
 function getAllTransactions(userId, callback) {
@@ -527,36 +768,6 @@ function isValidHash(hashCode) {
 
 // Complete the exchange 
 // After the trade is accepted, update the items table to reflect the new ownership
-function completeTrade(transactionId, userIdA, userIdB, itemAId, itemBId, callback) {
-  // First, update item A ownership to user B
-  barterDb.run(
-    `UPDATE items SET user_id = ? WHERE id = ?`,
-    [userIdB, itemAId],
-    function (err) {
-      if (err) return callback(err, null);
-
-      // Then update item B ownership to user A
-      barterDb.run(
-        `UPDATE items SET user_id = ? WHERE id = ?`,
-        [userIdA, itemBId],
-        function (err2) {
-          if (err2) return callback(err2, null);
-
-          // Update the transaction to mark it as completed
-          barterDb.run(
-            `UPDATE transactions SET action = 'completed trade' WHERE id = ?`,
-            [transactionId],
-            function (err3) {
-              if (err3) return callback(err3, null);
-
-              callback(null, "Trade completed successfully!");
-            }
-          );
-        }
-      );
-    }
-  );
-}
 
 
 
@@ -800,6 +1011,7 @@ module.exports = {
   addUser,
   getPastTrades,
   updatePassword,
+  findExchangeMatch,
   loginUser,
   getUserById,
   deleteUserById,
@@ -811,14 +1023,22 @@ module.exports = {
   logUserActivity,
   getAllTransactions,
   acceptTrade,
+  getAllEquivalenceRatios,
   deleteItemById,
   createDefaultAdminIfNotExists,
   createTransaction,
   verifyTransaction,
   getAvailableItems,
+  getPastTradesForUser,
   calculateFinalValue,
-  getEquivalenceRatio,
   createTransaction,
-  deleteTradeById
+  hasSufficientQuantity,
+  deleteTradeById,
+  getPendingIncomingTradesForUser,
+  getPendingSentTradesByUser,
+  getItemOwner,
+  createTradeTransaction,
+  getAllTrades,
+  acceptTradeAndAdjustInventory,
 
 };

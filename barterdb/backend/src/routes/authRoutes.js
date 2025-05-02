@@ -9,7 +9,7 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 const session = require("express-session");
-const { getUserById, getPastTrades, acceptTrade, deleteTradeById, getItemsByUserId, updateTradeAction, getAllTransactions, getAvailableItems, getAllItems, deleteItemById, getAllUsers, deleteUserById, findExchangeMatch, createTransaction, calculateFinalValue } = require("../database");
+const { getUserById, getPastTrades,getAllTrades, acceptTradeAndAdjustInventory, getItemOwner, getPendingIncomingTradesForUser, getPendingSentTradesByUser, createTradeTransaction, hasSufficientQuantity, getAllEquivalenceRatios, acceptTrade, deleteTradeById, getItemsByUserId, updateTradeAction, getAllTransactions, getAvailableItems, getAllItems, deleteItemById, getAllUsers, deleteUserById, findExchangeMatch, createTransaction, calculateFinalValue } = require("../database");
 const { addItem } = require("../database");
 const multer = require("multer");
 const path = require("path");
@@ -35,6 +35,102 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Trade routes
+router.post('/trade/initiate', authenticateToken, (req, res) => {
+  const requesterId = req.user.userId;
+  const { productNeeded, itemOffered, amountNeeded, amountOffered } = req.body;
+
+  if (!productNeeded || !itemOffered || !amountNeeded || !amountOffered) {
+    return res.status(400).json({ message: "Missing required trade fields" });
+  }
+
+  getItemOwner(productNeeded, (err, ownerId) => {
+    if (err || !ownerId) {
+      return res.status(400).json({ message: "Requested item not found or has no owner" });
+    }
+
+    createTradeTransaction(
+      requesterId,
+      ownerId,
+      itemOffered,
+      productNeeded,
+      amountOffered,
+      amountNeeded,
+      (err, tradeId) => {
+        if (err) {
+          return res.status(500).json({ message: "Failed to create trade" });
+        }
+
+        res.status(201).json({
+          message: "Trade offer submitted",
+          tradeId
+        });
+      }
+    );
+  });
+});
+
+//get a user's trades
+router.get('/my-trades/:userId', authenticateToken, (req, res) => {
+  const userId = req.params.userId;
+
+  getPendingSentTradesByUser(userId, (err, sentTrades) => {
+    if (err) return res.status(500).json({ message: "Error fetching sent trades" });
+
+    getPendingIncomingTradesForUser(userId, (err, receivedTrades) => {
+      if (err) return res.status(500).json({ message: "Error fetching received trades" });
+
+      res.status(200).json({
+        sent: sentTrades,
+        received: receivedTrades
+      });
+    });
+  });
+});
+
+//accept and trade and get new inventory 
+router.post('/trade/accept/:transactionId', authenticateToken, (req, res) => {
+  const transactionId = req.params.transactionId;
+
+  acceptTradeAndAdjustInventory(transactionId, (err, result) => {
+    if (err) {
+      console.error("Error accepting trade:", err);
+      return res.status(500).json({ message: "Failed to accept trade", error: err.message });
+    }
+
+    res.status(200).json(result);
+  });
+});
+
+//admin trade listings
+router.get('/admin-trades', authenticateToken, (req, res) => {
+  if (!req.user.is_admin) {
+    return res.status(403).json({ message: 'Access denied. Admins only.' });
+  }
+
+  getAllTrades((err, trades) => {
+    if (err) {
+      console.error("Error fetching trades:", err);
+      return res.status(500).json({ message: "Failed to fetch trades" });
+    }
+    res.status(200).json(trades);
+  });
+});
+
+
+// show past trades
+router.get('/past-trades/:userId', authenticateToken, (req, res) => {
+  const userId = req.params.userId;
+
+  getPastTradesForUser(userId, (err, trades) => {
+    if (err) {
+      console.error("Error fetching past trades:", err);
+      return res.status(500).json({ message: "Failed to fetch past trades" });
+    }
+
+    res.status(200).json(trades);
+  });
+});
 
 // Route for user activity
 router.get("/user/:id/activity", authenticateToken, (req, res) => {
@@ -310,6 +406,59 @@ router.post("/login", (req, res) => {
 
 // Trade Routes
 
+// Making/matching trades
+router.post('/match', authenticateToken, (req, res) => {
+  console.log('MATCH REQUEST BODY:', req.body);
+  console.log('AUTHENTICATED USER:', req.user);
+  const { productNeeded, itemOffered, amountNeeded, amountOffered } = req.body;
+  const userId = req.user.userId;
+
+  // Basic field presence validation
+  console.log("Received match request body:", req.body);
+
+  const isInvalid = [productNeeded, itemOffered, amountNeeded, amountOffered].some(
+    (v) => typeof v !== 'number' || Number.isNaN(v)
+  );
+  
+  if (isInvalid) {
+    return res.status(400).json({ message: "Invalid trade data", payload: req.body });
+  }
+  
+
+  findExchangeMatch(productNeeded, itemOffered, (err, match) => {
+    if (err) return res.status(500).json({ message: "Error finding equivalence match." });
+    if (!match) return res.status(404).json({ message: "No suitable match found." });
+
+    const requiredOffer = amountNeeded * match.equivalenceRatio;
+
+    hasSufficientQuantity(userId, itemOffered, requiredOffer, (err, result) => {
+      if (err) {
+        console.error("Inventory check error:", err);
+        return res.status(500).json({ message: "Internal error during quantity check." });
+      }
+    
+      console.log("Inventory check result:", result);
+    
+      if (!result.hasEnough) {
+        return res.status(400).json({
+          message: result.message,
+          available: result.available,
+          requiredOffer
+        });
+      }
+    
+      // ✅ All good
+      return res.status(200).json({
+        message: "Trade valid",
+        requiredOffer,
+        equivalenceRatio: match.equivalenceRatio
+      });
+    });
+  });
+});
+
+
+
 // Route to initiate a trade (with userId extracted from the token)
 router.post('/trade/initiate', authenticateToken, (req, res) => {
   const { productNeeded, itemOffered, quantityNeeded, quantityOffered } = req.body;
@@ -432,26 +581,20 @@ function generateTradeHash() {
 }
 
 
-// Route to handle a trade match
-router.post('/match', authenticateToken, (req, res) => {
-  const { productNeeded, itemOffered, amountNeeded, amountOffered } = req.body;
-  findExchangeMatch(productNeeded, itemOffered, (err, match) => {
-    if (err) return res.status(500).json({ message: err.message });
-    if (!match) return res.status(404).json({ message: "No suitable match found" });
 
-    const equivalenceRatio = match.equivalenceRatio;
+// Equivalence Ratios
 
-    calculateFinalValue(amountNeeded, equivalenceRatio, 10, (err, finalValue) => {
-      if (err) return res.status(500).json({ message: err.message });
+router.get('/equivalence',(req, res) => {
+  getAllEquivalenceRatios((err, data) => {
+    if (err) {
+      console.error("Error fetching equivalence data:", err);
+      return res.status(500).json({ message: "Error fetching equivalence data", error: err.message });
+    }
 
-      // Continue with transaction creation if final value is valid
-      createTransaction(req.user.id, match.userIdB, match.itemA.id, match.itemB.id, 'hashCode', (err, result) => {
-        if (err) return res.status(500).json({ message: err.message });
-        res.status(200).json({ message: "Transaction initiated", result });
-      });
-    });
+    res.status(200).json(data);
   });
 });
+
 
 
 
